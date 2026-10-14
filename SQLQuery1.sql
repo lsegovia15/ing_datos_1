@@ -188,3 +188,102 @@ CREATE TABLE MovimientoStock (
 );
 GO
  
+ALTER TABLE Usuario ADD CONSTRAINT FK_Usuario_Rol
+    FOREIGN KEY (IdRol) REFERENCES Rol (IdRol)
+    ON DELETE NO ACTION;
+
+ALTER TABLE CategoriaSegmento ADD CONSTRAINT FK_CategoriaSegmento_Categoria
+    FOREIGN KEY (IdCategoria) REFERENCES Categoria (IdCategoria)
+    ON DELETE NO ACTION;
+
+ALTER TABLE Producto ADD CONSTRAINT FK_Producto_CategoriaSegmento
+    FOREIGN KEY (IdCategoriaSegmento) REFERENCES CategoriaSegmento (IdCategoriaSegmento)
+    ON DELETE NO ACTION;
+
+ALTER TABLE Producto ADD CONSTRAINT FK_Producto_Marca
+    FOREIGN KEY (IdMarca) REFERENCES Marca (IdMarca)
+    ON DELETE NO ACTION;
+
+ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Producto
+    FOREIGN KEY (IdProducto) REFERENCES Producto (IdProducto)
+    ON DELETE NO ACTION;
+
+ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Talle
+    FOREIGN KEY (IdTalle) REFERENCES Talle (IdTalle)
+    ON DELETE NO ACTION;
+
+ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Color
+    FOREIGN KEY (IdColor) REFERENCES Color (IdColor)
+    ON DELETE NO ACTION;
+
+ALTER TABLE Compra ADD CONSTRAINT FK_Compra_Proveedor
+    FOREIGN KEY (IdProveedor) REFERENCES Proveedor (IdProveedor)
+    ON DELETE NO ACTION;
+
+ALTER TABLE Compra ADD CONSTRAINT FK_Compra_Usuario
+    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario)
+    ON DELETE NO ACTION;
+
+ALTER TABLE DetalleCompra ADD CONSTRAINT FK_DetalleCompra_Compra
+    FOREIGN KEY (IdCompra) REFERENCES Compra (IdCompra)
+    ON DELETE CASCADE;
+
+ALTER TABLE DetalleCompra ADD CONSTRAINT FK_DetalleCompra_Variante
+    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante)
+    ON DELETE NO ACTION;
+
+ALTER TABLE Venta ADD CONSTRAINT FK_Venta_Cliente
+    FOREIGN KEY (IdCliente) REFERENCES Cliente (IdCliente)
+    ON DELETE SET NULL;
+
+ALTER TABLE Venta ADD CONSTRAINT FK_Venta_Usuario
+    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario)
+    ON DELETE NO ACTION;
+
+ALTER TABLE DetalleVenta ADD CONSTRAINT FK_DetalleVenta_Venta
+    FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta)
+    ON DELETE CASCADE;
+
+ALTER TABLE DetalleVenta ADD CONSTRAINT FK_DetalleVenta_Variante
+    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante)
+    ON DELETE NO ACTION;
+
+ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Variante
+    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante)
+    ON DELETE NO ACTION;
+
+ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Usuario
+    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario)
+    ON DELETE NO ACTION;
+
+ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Compra
+    FOREIGN KEY (IdCompra) REFERENCES Compra (IdCompra)
+    ON DELETE SET NULL;
+
+ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Venta
+    FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta)
+    ON DELETE SET NULL;
+GO
+
+CREATE INDEX IX_Usuario_IdRol                 ON Usuario (IdRol);
+CREATE INDEX IX_Producto_IdCategoriaSegmento  ON Producto (IdCategoriaSegmento);
+CREATE INDEX IX_Producto_IdMarca              ON Producto (IdMarca);
+CREATE INDEX IX_Variante_IdTalle              ON VarianteProducto (IdTalle);
+CREATE INDEX IX_Variante_IdColor              ON VarianteProducto (IdColor);
+CREATE INDEX IX_Compra_IdProveedor            ON Compra (IdProveedor);
+CREATE INDEX IX_Compra_IdUsuario              ON Compra (IdUsuario);
+CREATE INDEX IX_DetalleCompra_IdVariante      ON DetalleCompra (IdVariante);
+CREATE INDEX IX_Venta_IdCliente               ON Venta (IdCliente);
+CREATE INDEX IX_Venta_IdUsuario               ON Venta (IdUsuario);
+CREATE INDEX IX_DetalleVenta_IdVariante       ON DetalleVenta (IdVariante);
+CREATE INDEX IX_Mov_IdVariante                ON MovimientoStock (IdVariante);
+CREATE INDEX IX_Mov_IdUsuario                 ON MovimientoStock (IdUsuario);
+CREATE INDEX IX_Mov_IdCompra                  ON MovimientoStock (IdCompra);
+CREATE INDEX IX_Mov_IdVenta                   ON MovimientoStock (IdVenta);
+
+CREATE INDEX IX_Producto_Nombre               ON Producto (Nombre);
+CREATE INDEX IX_Cliente_Apellido_Nombre       ON Cliente (Apellido, Nombre);
+CREATE INDEX IX_Compra_Fecha                  ON Compra (Fecha);
+CREATE INDEX IX_Venta_Fecha                   ON Venta (Fecha);
+CREATE INDEX IX_Mov_Fecha                     ON MovimientoStock (Fecha);
+GO
