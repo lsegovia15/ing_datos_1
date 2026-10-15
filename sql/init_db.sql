@@ -1,6 +1,3 @@
-<<<<<<< Updated upstream:SQLQuery1.sql
-CREATE DATABASE SIAM; -- Sistema Integrado Actividades Multiples
-=======
 CREATE DATABASE SIAM ; -- Sistema Integrado Administracion Multiple
 GO
 
@@ -301,4 +298,3 @@ CREATE INDEX IX_Compra_Fecha                  ON Compra (Fecha);
 CREATE INDEX IX_Venta_Fecha                   ON Venta (Fecha);
 CREATE INDEX IX_Mov_Fecha                     ON MovimientoStock (Fecha);
 GO
->>>>>>> Stashed changes:sql/init_db.sql
