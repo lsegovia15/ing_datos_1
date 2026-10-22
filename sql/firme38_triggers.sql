@@ -1,24 +1,8 @@
--- ============================================
--- SIAM - Sistema Integrado Administracion Multiple
--- Script de TRIGGERS
--- Ejecutar despues del script de creacion de base de datos.
--- Re-ejecutable.
---
--- Idea central: MovimientoStock es el UNICO lugar que modifica
--- VarianteProducto.StockActual. Ventas, anulaciones y compras generan
--- movimientos y el trigger de MovimientoStock aplica el stock.
--- ============================================
+
 
 USE SIAM;
 GO
 
--- ============================================
--- AJUSTES PREVIOS
--- ============================================
-
--- AJUSTE necesita signo (+ suma, - resta). Con Cantidad > 0 un ajuste
--- por rotura o faltante no puede restar stock.
--- (Alternativa: cambiar directamente el CHECK en el script de creacion.)
 ALTER TABLE MovimientoStock DROP CONSTRAINT IF EXISTS CK_Mov_Cantidad;
 ALTER TABLE MovimientoStock ADD CONSTRAINT CK_Mov_Cantidad CHECK (
        (TipoMovimiento =  'AJUSTE' AND Cantidad <> 0)
@@ -58,11 +42,10 @@ CREATE TABLE AlertaStock (
 GO
 
 
--- ============================================
+
 -- 1. MovimientoStock: aplica el stock
---    ENTRADA / DEVOLUCION suman, SALIDA resta, AJUSTE usa su signo.
---    (la existencia de la variante ya la garantiza FK_Mov_Variante)
--- ============================================
+
+
 CREATE OR ALTER TRIGGER TR_MovimientoStock_AplicarStock
 ON MovimientoStock
 AFTER INSERT
@@ -105,9 +88,9 @@ END;
 GO
 
 
--- ============================================
+
 -- 2. Venta y Compra: solo usuarios activos pueden registrarlas
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_Venta_UsuarioActivo
 ON Venta
 AFTER INSERT
@@ -137,9 +120,9 @@ END;
 GO
 
 
--- ============================================
+
 -- 3. DetalleVenta (INSERT): valida, genera SALIDA y recalcula Total
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_DetalleVenta_Insert
 ON DetalleVenta
 AFTER INSERT
@@ -160,7 +143,7 @@ BEGIN
                WHERE p.Activo = 0)
         THROW 50011, 'No se puede vender una variante de un producto inactivo.', 1;
 
-    -- IdMovimiento no es IDENTITY: correlativos a partir del maximo actual
+
     DECLARE @base INT = (SELECT ISNULL(MAX(IdMovimiento), 0)
                          FROM MovimientoStock WITH (UPDLOCK, HOLDLOCK));
 
@@ -197,9 +180,8 @@ END;
 GO
 
 
--- ============================================
 -- 4. Venta (UPDATE Estado): CONFIRMADA -> ANULADA devuelve el stock
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_Venta_CambioEstado
 ON Venta
 AFTER UPDATE
@@ -230,10 +212,9 @@ END;
 GO
 
 
--- ============================================
 -- 5. Compra (UPDATE Estado): PENDIENTE -> RECIBIDA ingresa el stock
 --    Transiciones validas: PENDIENTE -> RECIBIDA, PENDIENTE -> ANULADA
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_Compra_CambioEstado
 ON Compra
 AFTER UPDATE
@@ -271,9 +252,8 @@ END;
 GO
 
 
--- ============================================
 -- 6. DetalleCompra: solo editable con la compra PENDIENTE, recalcula Total
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_DetalleCompra_Control
 ON DetalleCompra
 AFTER INSERT, UPDATE, DELETE
@@ -304,9 +284,9 @@ END;
 GO
 
 
--- ============================================
+
 -- 7. VarianteProducto: historial de precios
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_Variante_HistorialPrecio
 ON VarianteProducto
 AFTER UPDATE
@@ -324,10 +304,10 @@ END;
 GO
 
 
--- ============================================
+
 -- 8. VarianteProducto: alerta cuando el stock cruza el minimo
 --    (solo al cruzar, no en cada venta posterior)
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_Variante_AlertaStock
 ON VarianteProducto
 AFTER UPDATE
@@ -346,11 +326,10 @@ END;
 GO
 
 
--- ============================================
 -- 9. Baja logica: ventas y compras no se borran, se anulan.
 --    INSTEAD OF corta el DELETE antes de que corran los ON DELETE CASCADE
 --    hacia DetalleVenta / DetalleCompra y los SET NULL de MovimientoStock.
--- ============================================
+
 CREATE OR ALTER TRIGGER TR_Venta_NoBorrar
 ON Venta
 INSTEAD OF DELETE
