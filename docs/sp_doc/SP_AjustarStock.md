@@ -16,6 +16,7 @@ Permite corregir manualmente el stock de una variante (por ejemplo, por rotura, 
    - Verifica que la cantidad actual sea distinta a la nueva (si es igual, aborta y avisa).
 2. **Transacción (`BEGIN TRAN`):**
    - Calcula la diferencia (`Nueva - Actual`).
+   - Inserta un registro en `MovimientoStock` con `TipoMovimiento = 'AJUSTE'` y la cantidad en valor absoluto (`ABS()`).
    - Hace `COMMIT`.
 3. **Manejo de Errores (`CATCH`):** `ROLLBACK` y `RAISERROR` estándar.
 
