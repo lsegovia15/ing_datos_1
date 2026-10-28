@@ -163,7 +163,7 @@ CREATE TABLE DetalleVenta (
     IdVariante      INT           NOT NULL,
     Cantidad        INT           NOT NULL,
     PrecioUnitario  DECIMAL(12,2) NOT NULL,
-    Descuento       DECIMAL(12,2) NOT NULL DEFAULT 0,
+    Descuento       DECIMAL(12,2) NOT NULL DEFAULT 0,                                    
     CONSTRAINT PK_DetalleVenta PRIMARY KEY (IdVenta, NroLinea),
     CONSTRAINT UQ_DetalleVenta UNIQUE (IdVenta, IdVariante),
     CONSTRAINT CK_DetalleVenta_Cantidad CHECK (Cantidad > 0),

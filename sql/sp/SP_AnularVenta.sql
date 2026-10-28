@@ -11,6 +11,8 @@ BEGIN
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
+        SET XACT_ABORT ON;
+
         -- 1. VALIDACIONES
         -- ¿Existe la venta? Guardamos su estado actual.
         SELECT @EstadoActual = Estado FROM Venta WHERE IdVenta = @IdVenta;
@@ -40,21 +42,6 @@ BEGIN
         SET Estado = 'ANULADA' 
         WHERE IdVenta = @IdVenta;
 
-        -- Paso B: Insertar los movimientos de stock (DEVOLUCION)
-        -- Tip: Usá un INSERT INTO ... SELECT desde DetalleVenta
-        INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, IdVenta, Observacion)
-        SELECT 
-            (SELECT ISNULL(MAX(IdMovimiento), 0) FROM MovimientoStock) + ROW_NUMBER() OVER (ORDER BY IdVariante),
-            IdVariante,
-            @IdUsuario,
-            GETDATE(),
-            'DEVOLUCION', -- Tipo de movimiento
-            Cantidad,     -- La cantidad que se había vendido
-            @IdVenta,
-            'Anulación de venta'
-        FROM DetalleVenta
-        WHERE IdVenta = @IdVenta;
-
         COMMIT TRANSACTION;
 
         -- 3. MENSAJE DE ÉXITO
@@ -65,11 +52,7 @@ BEGIN
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
 
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
-
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        THROW;
     END CATCH
 END;
 GO
