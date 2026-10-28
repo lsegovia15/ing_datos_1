@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SIAM · Panel de pruebas</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <strong>SIAM</strong>
+      <span>Panel de pruebas</span>
+    </div>
+    <div id="status" class="status">Conectando…</div>
+    <nav>
+      <button data-page="inicio" class="active">Inicio / Reiniciar base</button>
+      <button data-page="tablas">Tablas</button>
+      <button data-page="procedimientos">Procedimientos (SP)</button>
+      <button data-page="vistas">Vistas</button>
+      <button data-page="consola">Consultas y escenarios</button>
+    </nav>
+  </aside>
+
+  <main>
+    <!-- INICIO -->
+    <section id="page-inicio" class="page active">
+      <h1>Inicio</h1>
+      <p class="hint">
+        Reiniciar la base corre los scripts del repo en orden contra el SQL Server configurado en <code>.env</code>.
+        Destildá scripts para probar, por ejemplo, los SPs sin los triggers.
+      </p>
+      <div class="card">
+        <h2>Reiniciar base SIAM</h2>
+        <div id="scripts" class="checklist"></div>
+        <button id="btn-reset" class="primary">Borrar y recrear la base</button>
+        <div id="reset-report"></div>
+      </div>
+      <div class="card">
+        <h2>Resumen</h2>
+        <div id="summary">—</div>
+      </div>
+    </section>
+
+    <!-- TABLAS -->
+    <section id="page-tablas" class="page">
+      <h1>Tablas</h1>
+      <div class="toolbar">
+        <select id="table-select"></select>
+        <button id="btn-table-refresh">Refrescar</button>
+        <button id="btn-table-new" class="primary">+ Nuevo registro</button>
+      </div>
+      <div id="table-triggers" class="badges"></div>
+      <div id="table-form"></div>
+      <div id="table-result"></div>
+      <div id="table-grid"></div>
+    </section>
+
+    <!-- PROCEDIMIENTOS -->
+    <section id="page-procedimientos" class="page">
+      <h1>Procedimientos almacenados</h1>
+      <div class="toolbar">
+        <select id="proc-select"></select>
+      </div>
+      <p class="hint">Los campos vacíos no se envían, así el SP usa su valor por defecto.</p>
+      <div id="proc-form" class="card"></div>
+      <div id="proc-result"></div>
+      <div id="proc-effect"></div>
+    </section>
+
+    <!-- VISTAS -->
+    <section id="page-vistas" class="page">
+      <h1>Vistas</h1>
+      <div class="toolbar">
+        <select id="view-select"></select>
+        <button id="btn-view-run" class="primary">Consultar</button>
+      </div>
+      <div id="view-missing"></div>
+      <div id="view-result"></div>
+    </section>
+
+    <!-- CONSOLA -->
+    <section id="page-consola" class="page">
+      <h1>Consultas y escenarios</h1>
+      <div class="toolbar">
+        <select id="preset-select"></select>
+        <button id="btn-run" class="primary">Ejecutar (Ctrl+Enter)</button>
+      </div>
+      <textarea id="sql" spellcheck="false" placeholder="SELECT * FROM Venta;"></textarea>
+      <div id="query-result"></div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
