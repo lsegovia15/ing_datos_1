@@ -1,3 +1,6 @@
+USE SIAM;
+GO
+
 CREATE OR ALTER PROCEDURE SP_RegistrarVenta
     @IdCliente      INT = NULL,
     @IdUsuario      INT,
@@ -12,6 +15,8 @@ BEGIN
     DECLARE @ErrorMsg NVARCHAR(4000);
 
     BEGIN TRY
+        SET XACT_ABORT ON;
+
         -- 1. VALIDACIONES BÁSICAS
         IF NOT EXISTS (SELECT 1 FROM @Detalle)
         BEGIN
@@ -79,19 +84,6 @@ BEGIN
             IdVariante, Cantidad, PrecioUnitario, Descuento
         FROM @Detalle;
 
-        -- Insertar Movimiento de Stock (El trigger de tu compañero actualizará StockActual)
-        INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, IdVenta, Observacion)
-        SELECT 
-            (SELECT ISNULL(MAX(IdMovimiento), 0) FROM MovimientoStock) + ROW_NUMBER() OVER (ORDER BY IdVariante),
-            IdVariante,
-            @IdUsuario,
-            GETDATE(),
-            'SALIDA',
-            Cantidad,
-            @IdVenta,
-            'Venta registrada por SP'
-        FROM @Detalle;
-
         COMMIT TRANSACTION;
 
         -- Devolver resultado
@@ -102,11 +94,7 @@ BEGIN
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
 
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
-
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        THROW;
     END CATCH
 END;
 GO

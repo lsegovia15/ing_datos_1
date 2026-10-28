@@ -200,7 +200,10 @@ CREATE TABLE MovimientoStock (
     Observacion     VARCHAR(200) NULL,
     CONSTRAINT PK_MovimientoStock PRIMARY KEY (IdMovimiento),
     CONSTRAINT CK_Mov_Tipo CHECK (TipoMovimiento IN ('ENTRADA', 'SALIDA', 'AJUSTE', 'DEVOLUCION')),
-    CONSTRAINT CK_Mov_Cantidad CHECK (Cantidad > 0),
+    CONSTRAINT CK_Mov_Cantidad CHECK (
+        (TipoMovimiento =  'AJUSTE' AND Cantidad <> 0)
+     OR (TipoMovimiento <> 'AJUSTE' AND Cantidad >  0)
+    ),
     CONSTRAINT CK_Mov_Origen CHECK (NOT (IdCompra IS NOT NULL AND IdVenta IS NOT NULL))
 );
 GO

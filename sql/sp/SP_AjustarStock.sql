@@ -15,6 +15,8 @@ BEGIN
     DECLARE @IdMovimiento INT;
 
     BEGIN TRY
+        SET XACT_ABORT ON;
+
         -- 1. VALIDACIONES BÁSICAS
         IF (@NuevaCantidad < 0)
         BEGIN
@@ -52,14 +54,12 @@ BEGIN
         -- Generar el ID del movimiento
         SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
 
-        -- Insertar el movimiento. 
-        -- Si la diferencia es negativa (faltaba stock), la cantidad va en positivo 
-        -- y el trigger de tu compañero sabrá manejarlo (o usamos el valor absoluto).
-        -- Usaremos ABS() para guardar siempre la cantidad en positivo como pide el CHECK.
+        -- Insertar el movimiento con la diferencia firmada:
+        -- si la diferencia es negativa (faltaba stock), el trigger la resta.
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
-        VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', ABS(@Diferencia), @Observacion);
+        VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 
-        -- (Acá no actualizamos VarianteProducto.StockActual porque lo hace el trigger)
+        -- VarianteProducto.StockActual lo actualiza el trigger.
 
         COMMIT TRANSACTION;
 
@@ -76,11 +76,7 @@ BEGIN
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
 
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
-
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        THROW;
     END CATCH
 END;
 GO

@@ -4,7 +4,7 @@ GO
 -- ============================================================
 -- Vista 1: Control de stock detallado por variante
 -- ============================================================
-CREATE VIEW vw_StockVariante AS
+CREATE OR ALTER VIEW vw_StockVariante AS
 SELECT 
     v.IdVariante,
     p.Nombre        AS Producto,
@@ -36,7 +36,7 @@ GO
 -- ============================================================
 -- Vista 2: Ventas detalladas
 -- ============================================================
-CREATE VIEW vw_VentasDetalladas AS
+CREATE OR ALTER VIEW vw_VentasDetalladas AS
 SELECT
     v.IdVenta,
     v.Fecha,
@@ -57,14 +57,14 @@ GO
 -- ============================================================
 -- Vista 3: Productos con precio superior al promedio (activos)
 -- ============================================================
-CREATE VIEW vw_ProductosPremium AS
+CREATE OR ALTER VIEW vw_ProductosPremium AS
 SELECT 
     p.Nombre, 
     p.PrecioBase, 
     m.Nombre AS Marca
 FROM Producto p
 INNER JOIN Marca m ON p.IdMarca = m.IdMarca
-WHERE p.PrecioBase > (
+WHERE p.Activo = 1 AND p.PrecioBase > (
     SELECT AVG(p2.PrecioBase)
     FROM Producto p2
     WHERE p2.Activo = 1
