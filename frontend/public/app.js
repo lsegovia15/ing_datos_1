@@ -456,8 +456,7 @@ $('#btn-view-run').addEventListener('click', (e) => withBusy(e.target, async () 
 
 // Avisa si vistas.sql define vistas que no llegaron a crearse (error al reiniciar la base)
 function checkMissingViews() {
-  const expected = ['vw_StockVariate', 'vw_VentasDetalladas', 'vw_ProductosPremium'];
-  const missing = expected.filter((v) => !state.meta.views.includes(v));
+  const missing = state.meta.expectedViews.filter((v) => !state.meta.views.includes(v));
   $('#view-missing').replaceChildren(missing.length
     ? message('warn', `Definidas en sql/vistas.sql pero no existen en la base: ${missing.join(', ')}. Mirá el reporte de "Reiniciar base".`)
     : '');

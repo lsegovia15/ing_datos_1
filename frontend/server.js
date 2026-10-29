@@ -183,10 +183,17 @@ async function loadMeta() {
     });
   }
 
+  // Vistas que define sql/vistas.sql, para avisar si alguna no se pudo crear
+  const viewsFile = path.join(ROOT, 'sql/vistas.sql');
+  const expectedViews = fs.existsSync(viewsFile)
+    ? [...readScript('sql/vistas.sql').matchAll(/CREATE\s+(?:OR\s+ALTER\s+)?VIEW\s+(?:\[?dbo\]?\.)?\[?(\w+)/gi)].map((m) => m[1])
+    : [];
+
   return {
     database: DB_NAME,
     tables: Object.values(tables),
     views: views.recordset.map((v) => v.name),
+    expectedViews,
     procedures: Object.values(procedures),
   };
 }

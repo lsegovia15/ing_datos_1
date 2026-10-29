@@ -52,9 +52,7 @@ Este frontend está en una rama basada en `develop` con `martin` mergeada, para 
 
 Todos se reproducen desde el panel (sección SP → "Efecto en la base", o la consulta *Coherencia stock vs movimientos*):
 
-1. **`vistas.sql`: 2 de 3 vistas no compilan.**
-   - `vw_StockVariate`: `ON v.IdCategoria = p.IdProducto`. Debería ser `ON v.IdProducto = p.IdProducto`.
-   - `vw_ProductosPremium`: `p.Precio` no existe. Es `p.PrecioBase`.
+1. ~~**`vistas.sql`: 2 de 3 vistas no compilan.**~~ **Corregido** en esta rama: `vw_StockVariate` pasó a `vw_StockVariante` con el JOIN por `IdProducto`, y `vw_ProductosPremium` usa `PrecioBase` y solo productos activos.
 2. **SP + triggers duplican los movimientos de stock.** Los SPs se escribieron pensando en un trigger que solo actualice el stock, pero los triggers de `martin` también generan los movimientos:
    - `SP_RegistrarVenta` inserta `DetalleVenta` (eso dispara `TR_DetalleVenta_Insert`, que ya genera la `SALIDA`) y después inserta **otra** `SALIDA`. Vender 1 unidad descuenta 2.
    - `SP_AnularVenta` hace `UPDATE Venta SET Estado='ANULADA'` (eso dispara `TR_Venta_CambioEstado`, que ya genera la `DEVOLUCION`) y después inserta **otra** `DEVOLUCION`.
