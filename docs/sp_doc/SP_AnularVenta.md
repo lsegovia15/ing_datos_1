@@ -13,11 +13,12 @@ Anula una venta previamente registrada. Cambia el estado de la cabecera a 'ANULA
    - Verifica que la venta no esté ya 'ANULADA' (evita anulaciones duplicadas).
    - Verifica que el usuario que anula exista en el sistema.
 2. **Transacción (`BEGIN TRAN`):**
+   - Guarda `@IdUsuario` en el session context (`IdUsuarioOperacion`) para que el trigger sepa quién anula.
    - Actualiza el campo `Estado` de la tabla `Venta` a 'ANULADA'.
-   - Inserta en `MovimientoStock` un registro por cada línea de la venta original (`INSERT INTO ... SELECT FROM DetalleVenta`), pero con `TipoMovimiento = 'DEVOLUCION'`, copiando la `Cantidad` vendida.
-   - Si todo está OK, hace `COMMIT`.
+   - El trigger `TR_Venta_CambioEstado` inserta en `MovimientoStock` un registro `DEVOLUCION` por cada línea de la venta, a nombre del usuario que anula, y eso devuelve el stock.
+   - Limpia el session context y hace `COMMIT`.
 3. **Manejo de Errores (`CATCH`):**
-   - Si algo falla, ejecuta `ROLLBACK TRANSACTION` y muestra el error con `RAISERROR`.
+   - Si algo falla, ejecuta `ROLLBACK TRANSACTION`, limpia el session context y relanza el error con `THROW;`.
 
 **Pruebas realizadas:**
 - Anulación exitosa de la Venta #1. Se generaron los movimientos de devolución correspondientes (Variante 1: cant 2, Variante 2: cant 1).

@@ -37,10 +37,17 @@ BEGIN
         -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Paso A: Actualizar el estado de la venta
-        UPDATE Venta 
-        SET Estado = 'ANULADA' 
+        -- Paso A: Pasar al trigger TR_Venta_CambioEstado quién anula, para que
+        -- registre los movimientos de DEVOLUCION a nombre de este usuario
+        -- (y no del vendedor original de la venta).
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+
+        -- Paso B: Actualizar el estado de la venta (el trigger devuelve el stock)
+        UPDATE Venta
+        SET Estado = 'ANULADA'
         WHERE IdVenta = @IdVenta;
+
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
         COMMIT TRANSACTION;
 
@@ -51,6 +58,9 @@ BEGIN
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
+
+        -- El session context no se revierte con el ROLLBACK: lo limpiamos a mano
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
         THROW;
     END CATCH
