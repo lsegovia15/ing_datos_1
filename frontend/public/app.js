@@ -103,6 +103,13 @@ async function refreshAll() {
   const status = $('#status');
   try {
     const info = await apiCall('/api/status');
+    if (info.dbMissing) {
+      status.className = 'status';
+      status.textContent = `Conectado al servidor, pero la base ${info.db} todavía no existe. Tocá "Borrar y recrear la base".`;
+      state.meta = null;
+      renderSummary();
+      return;
+    }
     status.className = 'status ok';
     status.textContent = `Conectado a ${info.db} · ${info.version.split('\n')[0].replace('Microsoft ', '')}`;
   } catch (err) {

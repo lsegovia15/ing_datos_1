@@ -275,9 +275,20 @@ const api = (handler) => async (req, res) => {
 };
 
 app.get('/api/status', api(async () => {
-  const pool = await getPool();
-  const result = await pool.request().query('SELECT @@VERSION AS version, DB_NAME() AS db');
-  return { ok: true, ...result.recordset[0] };
+  try {
+    const pool = await getPool();
+    const result = await pool.request().query('SELECT @@VERSION AS version, DB_NAME() AS db');
+    return { ok: true, ...result.recordset[0] };
+  } catch (err) {
+    // SQL Server responde "Login failed" tambien cuando la base no existe:
+    // probamos contra master para distinguir credenciales malas de base sin crear.
+    const master = await new sql.ConnectionPool(dbConfig('master')).connect().catch(() => null);
+    if (!master) throw err;
+    const exists = await master.request().query(`SELECT DB_ID('${DB_NAME.replace(/'/g, "''")}') AS id`);
+    await master.close();
+    if (exists.recordset[0].id === null) return { ok: false, dbMissing: true, db: DB_NAME };
+    throw err;
+  }
 }));
 
 app.get('/api/meta', api(loadMeta));
