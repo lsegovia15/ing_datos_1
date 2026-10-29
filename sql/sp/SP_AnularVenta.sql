@@ -11,6 +11,8 @@ BEGIN
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
+        SET XACT_ABORT ON;
+
         -- 1. VALIDACIONES
         -- ¿Existe la venta? Guardamos su estado actual.
         SELECT @EstadoActual = Estado FROM Venta WHERE IdVenta = @IdVenta;
@@ -35,25 +37,17 @@ BEGIN
         -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Paso A: Actualizar el estado de la venta
-        UPDATE Venta 
-        SET Estado = 'ANULADA' 
+        -- Paso A: Pasar al trigger TR_Venta_CambioEstado quién anula, para que
+        -- registre los movimientos de DEVOLUCION a nombre de este usuario
+        -- (y no del vendedor original de la venta).
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+
+        -- Paso B: Actualizar el estado de la venta (el trigger devuelve el stock)
+        UPDATE Venta
+        SET Estado = 'ANULADA'
         WHERE IdVenta = @IdVenta;
 
-        -- Paso B: Insertar los movimientos de stock (DEVOLUCION)
-        -- Tip: Usá un INSERT INTO ... SELECT desde DetalleVenta
-        INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, IdVenta, Observacion)
-        SELECT 
-            (SELECT ISNULL(MAX(IdMovimiento), 0) FROM MovimientoStock) + ROW_NUMBER() OVER (ORDER BY IdVariante),
-            IdVariante,
-            @IdUsuario,
-            GETDATE(),
-            'DEVOLUCION', -- Tipo de movimiento
-            Cantidad,     -- La cantidad que se había vendido
-            @IdVenta,
-            'Anulación de venta'
-        FROM DetalleVenta
-        WHERE IdVenta = @IdVenta;
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
         COMMIT TRANSACTION;
 
@@ -65,11 +59,10 @@ BEGIN
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
 
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
+        -- El session context no se revierte con el ROLLBACK: lo limpiamos a mano
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        THROW;
     END CATCH
 END;
 GO

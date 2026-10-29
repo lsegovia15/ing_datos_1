@@ -15,6 +15,8 @@ BEGIN
     DECLARE @IdMovimiento INT;
 
     BEGIN TRY
+        SET XACT_ABORT ON;
+
         -- 1. VALIDACIONES BÁSICAS
         IF (@NuevaCantidad < 0)
         BEGIN
@@ -26,9 +28,19 @@ BEGIN
             THROW 50021, 'El usuario que realiza el ajuste no existe.', 1;
         END;
 
-        -- Obtener el stock actual de la variante
-        SELECT @StockActual = StockActual 
-        FROM VarianteProducto 
+        -- 2. TRANSACCIÓN
+        -- El stock se lee DENTRO de la transacción y bloqueado: si se leyera antes,
+        -- una venta concurrente podría cambiarlo y la diferencia calculada quedaría mal.
+        BEGIN TRANSACTION;
+
+        -- Generar el ID del movimiento. Se bloquea MovimientoStock primero (mismo orden
+        -- que usan los triggers de venta/compra) para no chocar IDs ni generar deadlocks.
+        SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1
+        FROM MovimientoStock WITH (UPDLOCK, HOLDLOCK);
+
+        -- Obtener el stock actual de la variante, bloqueando la fila hasta el COMMIT
+        SELECT @StockActual = StockActual
+        FROM VarianteProducto WITH (UPDLOCK, HOLDLOCK)
         WHERE IdVariante = @IdVariante;
 
         IF @StockActual IS NULL
@@ -41,31 +53,25 @@ BEGIN
 
         IF @Diferencia = 0
         BEGIN
+            COMMIT TRANSACTION;
+
             -- No es un error, pero avisamos que no se hizo nada
             SELECT @IdVariante AS IdVariante, @StockActual AS StockActual, 'No hubo diferencia. No se registró ajuste.' AS Mensaje;
             RETURN;
         END;
 
-        -- 2. TRANSACCIÓN
-        BEGIN TRANSACTION;
-
-        -- Generar el ID del movimiento
-        SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
-
-        -- Insertar el movimiento. 
-        -- Si la diferencia es negativa (faltaba stock), la cantidad va en positivo 
-        -- y el trigger de tu compañero sabrá manejarlo (o usamos el valor absoluto).
-        -- Usaremos ABS() para guardar siempre la cantidad en positivo como pide el CHECK.
+        -- Insertar el movimiento con la diferencia firmada:
+        -- si la diferencia es negativa (faltaba stock), el trigger la resta.
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
-        VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', ABS(@Diferencia), @Observacion);
+        VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 
-        -- (Acá no actualizamos VarianteProducto.StockActual porque lo hace el trigger)
+        -- VarianteProducto.StockActual lo actualiza el trigger.
 
         COMMIT TRANSACTION;
 
         -- 3. MENSAJE DE ÉXITO
-        SELECT 
-            @IdVariante AS IdVariante, 
+        SELECT
+            @IdVariante AS IdVariante,
             @StockActual AS StockAnterior,
             @NuevaCantidad AS StockNuevo,
             @Diferencia AS Diferencia,
@@ -76,11 +82,7 @@ BEGIN
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
 
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
-
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        THROW;
     END CATCH
 END;
 GO
