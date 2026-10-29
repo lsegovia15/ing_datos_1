@@ -5,7 +5,7 @@ GO
 -- Vista 1: Control de stock detallado por variante
 -- ============================================================
 CREATE OR ALTER VIEW vw_StockVariante AS
-SELECT
+SELECT 
     v.IdVariante,
     p.Nombre        AS Producto,
     m.Nombre        AS Marca,
@@ -17,7 +17,7 @@ SELECT
     v.PrecioVenta,
     v.StockActual,
     v.StockMinimo,
-    CASE
+    CASE 
         WHEN v.StockActual = 0              THEN 'SIN STOCK'
         WHEN v.StockActual <= v.StockMinimo THEN 'BAJO STOCK'
         ELSE 'STOCK SUFICIENTE'
@@ -40,7 +40,7 @@ CREATE OR ALTER VIEW vw_VentasDetalladas AS
 SELECT
     v.IdVenta,
     v.Fecha,
-    CASE
+    CASE 
         WHEN cl.IdCliente IS NULL THEN 'Consumidor Final'
         ELSE CONCAT(cl.Nombre, ' ', cl.Apellido)
     END                                              AS Cliente,
@@ -58,9 +58,9 @@ GO
 -- Vista 3: Productos con precio superior al promedio (activos)
 -- ============================================================
 CREATE OR ALTER VIEW vw_ProductosPremium AS
-SELECT
-    p.Nombre,
-    p.PrecioBase,
+SELECT 
+    p.Nombre, 
+    p.PrecioBase, 
     m.Nombre AS Marca
 FROM Producto p
 INNER JOIN Marca m ON p.IdMarca = m.IdMarca
