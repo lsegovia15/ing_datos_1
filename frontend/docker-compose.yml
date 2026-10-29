@@ -1,0 +1,13 @@
+# SQL Server local para probar sin instalar nada (opcional).
+# Uso: docker compose up -d   (la contraseña y el puerto coinciden con .env.example)
+# Se publica en el puerto 14330 para no chocar con un SQL Server instalado en Windows
+# (que usa 1433, y 1434 en localhost para la conexion de administrador DAC).
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: siam-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Siam_Test_2026!"
+    ports:
+      - "14330:1433"

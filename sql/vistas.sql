@@ -21,7 +21,7 @@ SELECT
         WHEN v.StockActual = 0              THEN 'SIN STOCK'
         WHEN v.StockActual <= v.StockMinimo THEN 'BAJO STOCK'
         ELSE 'STOCK SUFICIENTE'
-    END AS EstadoStock 
+    END AS EstadoStock
 FROM VarianteProducto v
 INNER JOIN Producto  p   ON v.IdProducto  = p.IdProducto
 INNER JOIN Marca     m   ON p.IdMarca     = m.IdMarca

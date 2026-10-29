@@ -1,0 +1,19 @@
+{
+  "name": "siam-frontend-pruebas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend para probar la base SIAM (tablas, SPs, vistas, triggers) sin escribir consultas a mano",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "db:up": "docker compose up -d"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "mssql": "^11.0.1"
+  }
+}
