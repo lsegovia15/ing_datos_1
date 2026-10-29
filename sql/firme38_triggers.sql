@@ -65,7 +65,7 @@ BEGIN
                FROM @Delta d
                JOIN VarianteProducto v ON v.IdVariante = d.IdVariante
                WHERE v.StockActual + d.Cant < 0)
-        THROW 50002, 'Stock insuficiente para registrar el movimiento.', 1;
+        THROW 51002, 'Stock insuficiente para registrar el movimiento.', 1;
 
     UPDATE v
     SET    v.StockActual = v.StockActual + d.Cant
@@ -83,7 +83,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM deleted)
-        THROW 50003, 'Los movimientos de stock no se modifican: registre un AJUSTE.', 1;
+        THROW 51003, 'Los movimientos de stock no se modifican: registre un AJUSTE.', 1;
 END;
 GO
 
@@ -101,7 +101,7 @@ BEGIN
                FROM inserted i
                JOIN Usuario u ON u.IdUsuario = i.IdUsuario
                WHERE u.Activo = 0)
-        THROW 50004, 'Un usuario inactivo no puede registrar ventas.', 1;
+        THROW 51004, 'Un usuario inactivo no puede registrar ventas.', 1;
 END;
 GO
 
@@ -115,7 +115,7 @@ BEGIN
                FROM inserted i
                JOIN Usuario u ON u.IdUsuario = i.IdUsuario
                WHERE u.Activo = 0)
-        THROW 50005, 'Un usuario inactivo no puede registrar compras.', 1;
+        THROW 51005, 'Un usuario inactivo no puede registrar compras.', 1;
 END;
 GO
 
@@ -134,14 +134,14 @@ BEGIN
                FROM inserted i
                JOIN Venta v ON v.IdVenta = i.IdVenta
                WHERE v.Estado <> 'CONFIRMADA')
-        THROW 50010, 'Solo se agregan lineas a una venta CONFIRMADA.', 1;
+        THROW 51010, 'Solo se agregan lineas a una venta CONFIRMADA.', 1;
 
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN VarianteProducto vp ON vp.IdVariante = i.IdVariante
                JOIN Producto p          ON p.IdProducto  = vp.IdProducto
                WHERE p.Activo = 0)
-        THROW 50011, 'No se puede vender una variante de un producto inactivo.', 1;
+        THROW 51011, 'No se puede vender una variante de un producto inactivo.', 1;
 
 
     DECLARE @base INT = (SELECT ISNULL(MAX(IdMovimiento), 0)
@@ -154,7 +154,7 @@ BEGIN
            CONCAT('Venta ', i.IdVenta, ' linea ', i.NroLinea)
     FROM inserted i
     JOIN Venta v ON v.IdVenta = i.IdVenta;
-    -- si falta stock, TR_MovimientoStock_AplicarStock lanza 50002 y se revierte todo
+    -- si falta stock, TR_MovimientoStock_AplicarStock lanza 51002 y se revierte todo
 
     UPDATE v
     SET    v.Total = t.Total
@@ -175,7 +175,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1 FROM deleted)
-        THROW 50012, 'Las lineas de venta no se modifican ni borran: anule la venta.', 1;
+        THROW 51012, 'Las lineas de venta no se modifican ni borran: anule la venta.', 1;
 END;
 GO
 
@@ -194,15 +194,19 @@ BEGIN
                FROM inserted i
                JOIN deleted d ON d.IdVenta = i.IdVenta
                WHERE d.Estado = 'ANULADA' AND i.Estado <> 'ANULADA')
-        THROW 50020, 'Una venta anulada no puede volver a confirmarse.', 1;
+        THROW 51020, 'Una venta anulada no puede volver a confirmarse.', 1;
 
     DECLARE @base INT = (SELECT ISNULL(MAX(IdMovimiento), 0)
                          FROM MovimientoStock WITH (UPDLOCK, HOLDLOCK));
 
     INSERT INTO MovimientoStock
            (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, IdVenta, Observacion)
+    -- El usuario que anula llega por SESSION_CONTEXT desde SP_AnularVenta;
+    -- si se anula con un UPDATE directo, queda el vendedor original.
     SELECT @base + ROW_NUMBER() OVER (ORDER BY dv.IdVenta, dv.NroLinea),
-           dv.IdVariante, i.IdUsuario, GETDATE(), 'DEVOLUCION', dv.Cantidad, dv.IdVenta,
+           dv.IdVariante,
+           ISNULL(CAST(SESSION_CONTEXT(N'IdUsuarioOperacion') AS INT), i.IdUsuario),
+           GETDATE(), 'DEVOLUCION', dv.Cantidad, dv.IdVenta,
            CONCAT('Anulacion venta ', dv.IdVenta)
     FROM inserted i
     JOIN deleted d       ON d.IdVenta  = i.IdVenta
@@ -227,14 +231,14 @@ BEGIN
                FROM inserted i
                JOIN deleted d ON d.IdCompra = i.IdCompra
                WHERE d.Estado <> i.Estado AND d.Estado <> 'PENDIENTE')
-        THROW 50030, 'Solo una compra PENDIENTE puede cambiar de estado.', 1;
+        THROW 51030, 'Solo una compra PENDIENTE puede cambiar de estado.', 1;
 
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdCompra = i.IdCompra
                WHERE d.Estado = 'PENDIENTE' AND i.Estado = 'RECIBIDA'
                  AND NOT EXISTS (SELECT 1 FROM DetalleCompra dc WHERE dc.IdCompra = i.IdCompra))
-        THROW 50031, 'No se puede recibir una compra sin lineas.', 1;
+        THROW 51031, 'No se puede recibir una compra sin lineas.', 1;
 
     DECLARE @base INT = (SELECT ISNULL(MAX(IdMovimiento), 0)
                          FROM MovimientoStock WITH (UPDLOCK, HOLDLOCK));
@@ -271,7 +275,7 @@ BEGIN
                FROM @Compras x
                JOIN Compra c ON c.IdCompra = x.IdCompra
                WHERE c.Estado <> 'PENDIENTE')
-        THROW 50040, 'Solo se modifican lineas de una compra PENDIENTE.', 1;
+        THROW 51040, 'Solo se modifican lineas de una compra PENDIENTE.', 1;
 
     UPDATE c
     SET    c.Total = ISNULL(t.Total, 0)
@@ -336,7 +340,7 @@ INSTEAD OF DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
-    THROW 50050, 'Las ventas no se borran: cambie Estado a ANULADA.', 1;
+    THROW 51050, 'Las ventas no se borran: cambie Estado a ANULADA.', 1;
 END;
 GO
 
@@ -346,6 +350,6 @@ INSTEAD OF DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
-    THROW 50051, 'Las compras no se borran: cambie Estado a ANULADA.', 1;
+    THROW 51051, 'Las compras no se borran: cambie Estado a ANULADA.', 1;
 END;
 GO

@@ -69,8 +69,9 @@ BEGIN
         -- Calcular el total
         SELECT @Total = SUM(Cantidad * PrecioUnitario - Descuento) FROM @Detalle;
 
-        -- Generar el ID
-        SELECT @IdVenta = ISNULL(MAX(IdVenta), 0) + 1 FROM Venta;
+        -- Generar el ID (bloqueado hasta el COMMIT para que dos ventas
+        -- simultáneas no obtengan el mismo IdVenta)
+        SELECT @IdVenta = ISNULL(MAX(IdVenta), 0) + 1 FROM Venta WITH (UPDLOCK, HOLDLOCK);
 
         -- Insertar Cabecera
         INSERT INTO Venta (IdVenta, IdCliente, IdUsuario, Fecha, MedioPago, Total, Estado)
