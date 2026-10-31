@@ -1,3 +1,6 @@
+USE SIAM;
+GO
+
 -- Subconsulta: Clientes que han comprado ropa de la categoria 'Buzos'
 -- (Asumiendo que existe la categoría, filtramos por IdCategoria)
 
@@ -22,12 +25,12 @@ WHERE NOT EXISTS(
     INNER JOIN DetalleVenta dv ON vp.IdVariante = dv.IdVariante
     WHERE vp.IdProducto = p.IdProducto
 );
--- 2.3 Subconsulta con ALL (o > ANY): Variantes cuyo precio es mayor a TODOS los precios de la marca 'MarcaEjemplo'
+-- 2.3 Subconsulta con ALL (o > ANY): Variantes cuyo precio es mayor a TODOS los precios de la marca 'Nangallery'
 SELECT vp.SKU, vp.PrecioVenta 
 FROM VarianteProducto vp
 WHERE vp.PrecioVenta > ALL (
     SELECT p.PrecioBase 
     FROM Producto p
     INNER JOIN Marca m ON p.IdMarca = m.IdMarca
-    WHERE m.Nombre = 'MarcaEjemplo'
+    WHERE m.Nombre = 'Nangallery'
 );

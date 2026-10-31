@@ -9,6 +9,8 @@ Permite corregir manualmente el stock de una variante (por ejemplo, por rotura, 
 - `@IdUsuario` (INT, obligatorio): ID del usuario que autoriza el ajuste.
 - `@Observacion` (VARCHAR(200), opcional): Motivo del ajuste.
 
+**Roles:** solo el `Administrador` puede ejecutarlo. El permiso de motor `EXECUTE` se concede a `rol_administrador` y se deniega explícitamente a `rol_vendedor`.
+
 **Flujo Lógico y Control de Errores:**
 1. **Validaciones (`TRY`):**
    - Verifica que la nueva cantidad no sea negativa.

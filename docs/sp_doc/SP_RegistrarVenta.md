@@ -1,7 +1,7 @@
 ## Procedimiento Almacenado: SP_RegistrarVenta
 
 **Descripción:** 
-Registra una venta completa (cabecera, detalle y movimiento de stock) de forma transaccional. Valida stock y consistencia de datos antes de guardar.
+Registra una venta completa (cabecera y detalle) de forma transaccional. Valida stock y consistencia de datos antes de guardar. El movimiento de stock `SALIDA`, la actualización de `StockActual` y el recálculo del total los realizan los triggers.
 
 **Tecnología utilizada:**
 Se utiliza un **Table-Valued Parameter (TVP)** (`TipoDetalleVenta`) para enviar el carrito de compras. Esto evita el uso de strings dinámicos o JSON, manteniendo la integridad de los tipos de datos y permitiendo procesar múltiples líneas en una sola llamada.
@@ -11,6 +11,8 @@ Se utiliza un **Table-Valued Parameter (TVP)** (`TipoDetalleVenta`) para enviar 
 - `@IdUsuario` (INT, obligatorio): ID del vendedor.
 - `@MedioPago` (VARCHAR(20), obligatorio): EFECTIVO, DEBITO, CREDITO o TRANSFERENCIA.
 - `@Detalle` (TipoDetalleVenta READONLY, obligatorio): Tabla con las columnas IdVariante, Cantidad, PrecioUnitario y Descuento.
+
+**Roles:** pueden ejecutarlo usuarios activos con rol de aplicación `Vendedor` o `Administrador`. El permiso de motor `EXECUTE` se concede al rol `rol_vendedor`.
 
 **Control de Errores y Validaciones:**
 1. Uso de `TRY...CATCH` con `THROW;` para propagar errores.

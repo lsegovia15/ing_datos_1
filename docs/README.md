@@ -1,8 +1,8 @@
-# Propuesta TPO – Sistema de Gestión para Local de Indumentaria
+# SIAM – Sistema de Gestión para Local de Indumentaria
 
 ## 1. Nombre y dominio del proyecto
 
-**Nombre del proyecto:** Firme38 – Sistema de Gestión de Local de Indumentaria.
+**Nombre del proyecto:** SIAM – Sistema Integrado de Administración Múltiple.
 
 **Dominio del proyecto:** Gestión integral de un emprendimiento dedicado a la comercialización de indumentaria urbana, incluyendo productos como remeras, buzos, pantalones, bermudas y otros artículos de ropa.
 
@@ -122,3 +122,10 @@ Esto permitirá restringir determinadas operaciones según el tipo de usuario. P
 El objetivo principal del proyecto es desarrollar una base de datos que permita gestionar de manera centralizada la información de un local de indumentaria, facilitando el control de productos, variantes, stock, compras y ventas.
 
 La implementación de reglas de integridad, automatizaciones y permisos permitirá mantener la información organizada y reducir errores en las operaciones habituales del negocio.
+
+## 7. Documentación complementaria
+
+- [Modelo de tablas](Documentacion_Tablas.md)
+- [Orden de ejecución](ORDEN_EJECUCION.md)
+- [Seguridad y permisos](SEGURIDAD.md)
+- [Procedimientos almacenados y errores](sp_doc/sp_y_errores.md)
