@@ -44,14 +44,16 @@ Los rangos están separados para poder identificar el origen de cada error:
 
 | Código / rango | Origen |
 |---|---|
-| 50001 – 50006 | `SP_RegistrarVenta` |
+| 50001 – 50007 | `SP_RegistrarVenta` (50002: usuario inactivo; 50007: rol no permitido) |
 | 50010 – 50013 | `SP_AnularVenta` (incluye 50013: rol no administrador) |
-| 50020 – 50022 | `SP_AjustarStock` |
-| 50100 – 50106 | `SP_RegistrarCompra` (detalle, proveedor, usuario, duplicados, cantidades, costos, variantes) |
-| 50110 – 50113 | `SP_RecibirCompra` (compra inexistente, sin líneas, estado incorrecto, usuario) |
+| 50020 – 50023 | `SP_AjustarStock` (50021: usuario inactivo; 50023: rol no administrador) |
+| 50100 – 50107 | `SP_RegistrarCompra` (detalle, proveedor, usuario, rol, duplicados, cantidades, costos, variantes) |
+| 50110 – 50114 | `SP_RecibirCompra` (compra inexistente, sin líneas, estado incorrecto, usuario, rol) |
 | 51000 – 51099 | Triggers (`siam_triggers.sql`) |
 
-**Casos borde cubiertos en `seed_data.sql`:** venta sin stock (50006), compra sin detalle (50100), recepción sin líneas (50111), ajuste sin diferencia (sin movimiento) y anulación duplicada (50011). También se prueba que un vendedor no puede anular (50013).
+**Defensa en profundidad:** además de los permisos `GRANT`/`DENY` de `seguridad.sql`, los SPs administrativos vuelven a validar que el usuario de aplicación esté activo y tenga el rol correspondiente. Así, aunque en el futuro se concediera `EXECUTE` a otro rol de motor, la regla de negocio seguiría vigente.
+
+**Casos borde cubiertos en `seed_data.sql`:** venta sin stock (50006), compra sin detalle (50100), recepción sin líneas (50111), ajuste sin diferencia (sin movimiento) y anulación duplicada (50011). También se prueba que un vendedor no puede anular (50013), ajustar stock (50023), registrar compras (50107) ni recibir compras (50114), y que un usuario inactivo no puede vender (50002).
 
 ### 7. Documentación por procedimiento
 

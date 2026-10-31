@@ -40,6 +40,7 @@ Las contraseñas del script son de ejemplo y deben cambiarse en un entorno real.
 - **Compras:** el vendedor no tiene acceso a compras, proveedores ni movimientos de stock.
 - **Ventas:** el vendedor solo registra ventas mediante `SP_RegistrarVenta`; no inserta cabeceras ni líneas directamente. El trigger `TR_DetalleVenta_Insert` rechaza inserciones directas con el error `51013`.
 - **Anulación:** solo un `Administrador` activo puede anular; el SP valida el rol de aplicación (error `50013`) y el motor deniega `EXECUTE` al rol de vendedor.
+- **Defensa en profundidad:** los SPs administrativos (`SP_AjustarStock`, `SP_RegistrarCompra`, `SP_RecibirCompra`, `SP_AnularVenta`) validan internamente el rol `Administrador` activo. `SP_RegistrarVenta` exige un usuario activo con rol `Administrador` o `Vendedor`. Aunque se concediera `EXECUTE` a otro rol de motor, la regla de negocio seguiría aplicándose.
 
 ## 4. Verificación rápida
 

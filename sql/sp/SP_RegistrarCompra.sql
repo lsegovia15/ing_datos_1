@@ -32,6 +32,20 @@ BEGIN
             THROW 50102, 'El usuario que registra la compra no existe o está inactivo.', 1;
         END;
 
+        -- Defensa en profundidad: la regla de negocio se valida también en el
+        -- SP, sin depender únicamente de los permisos EXECUTE del motor.
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Usuario u
+            INNER JOIN Rol r ON r.IdRol = u.IdRol
+            WHERE u.IdUsuario = @IdUsuario
+              AND u.Activo = 1
+              AND r.Nombre = 'Administrador'
+        )
+        BEGIN
+            THROW 50107, 'Solo un usuario Administrador activo puede registrar compras.', 1;
+        END;
+
         IF EXISTS (SELECT IdVariante FROM @Detalle GROUP BY IdVariante HAVING COUNT(*) > 1)
         BEGIN
             THROW 50103, 'No se puede repetir la misma variante en la misma compra.', 1;

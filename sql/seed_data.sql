@@ -326,6 +326,65 @@ BEGIN CATCH
     SELECT 'ANULACION_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
 END CATCH;
 
+-- 8.6 Ajuste por Vendedor: la regla interna del SP debe rechazarlo.
+BEGIN TRY
+    EXEC dbo.SP_AjustarStock
+        @IdVariante = 1,
+        @NuevaCantidad = 17,
+        @IdUsuario = 2,
+        @Observacion = 'Prueba de rol no autorizado';
+
+    SELECT 'AJUSTE_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió ajustar stock' AS Resultado;
+END TRY
+BEGIN CATCH
+    SELECT 'AJUSTE_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+END CATCH;
+
+-- 8.7 Compra por Vendedor: la regla interna del SP debe rechazarlo.
+DELETE FROM @dc;
+INSERT INTO @dc (IdVariante, Cantidad, CostoUnitario) VALUES
+    (1, 1, 9000.00);
+
+BEGIN TRY
+    EXEC dbo.SP_RegistrarCompra
+        @IdProveedor = 1,
+        @IdUsuario = 2,
+        @NroComprobante = 'TEST-COMPRA-VENDEDOR',
+        @Detalle = @dc;
+
+    SELECT 'COMPRA_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió registrar una compra' AS Resultado;
+END TRY
+BEGIN CATCH
+    SELECT 'COMPRA_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+END CATCH;
+
+-- 8.8 Recepción por Vendedor: la compra 2 sigue PENDIENTE.
+BEGIN TRY
+    EXEC dbo.SP_RecibirCompra @IdCompra = 2, @IdUsuario = 2;
+    SELECT 'RECEPCION_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió recibir una compra' AS Resultado;
+END TRY
+BEGIN CATCH
+    SELECT 'RECEPCION_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+END CATCH;
+
+-- 8.9 Venta con usuario inactivo: se rechaza antes de abrir la transacción.
+DELETE FROM @dvSinStock;
+INSERT INTO @dvSinStock (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
+    (1, 1, 18000.00, 0);
+
+BEGIN TRY
+    EXEC dbo.SP_RegistrarVenta
+        @IdCliente = 1,
+        @IdUsuario = 4,
+        @MedioPago = 'EFECTIVO',
+        @Detalle = @dvSinStock;
+
+    SELECT 'VENTA_USUARIO_INACTIVO' AS Caso, 'ERROR: un usuario inactivo no debió vender' AS Resultado;
+END TRY
+BEGIN CATCH
+    SELECT 'VENTA_USUARIO_INACTIVO' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+END CATCH;
+
 -- ============================================================
 -- 9. RESUMEN DEL SEED
 -- ============================================================

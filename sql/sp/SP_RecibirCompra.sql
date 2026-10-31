@@ -18,6 +18,20 @@ BEGIN
             THROW 50113, 'El usuario que recibe la compra no existe o está inactivo.', 1;
         END;
 
+        -- Defensa en profundidad: la recepción es una operación administrativa
+        -- y se valida también a nivel lógico, además del permiso EXECUTE.
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Usuario u
+            INNER JOIN Rol r ON r.IdRol = u.IdRol
+            WHERE u.IdUsuario = @IdUsuario
+              AND u.Activo = 1
+              AND r.Nombre = 'Administrador'
+        )
+        BEGIN
+            THROW 50114, 'Solo un usuario Administrador activo puede recibir compras.', 1;
+        END;
+
         BEGIN TRANSACTION;
 
         -- Bloqueo de la compra para que dos recepciones concurrentes no

@@ -57,6 +57,10 @@ En SSMS: habilitar **SQLCMD Mode**, abrir `sql/00_master.sql` y ejecutar con la 
 - Ajuste sin diferencia: no genera movimiento.
 - Anulación duplicada: error `50011`.
 - Anulación ejecutada por un vendedor: error `50013`.
+- Ajuste ejecutado por un vendedor: error `50023`.
+- Compra registrada por un vendedor: error `50107`.
+- Recepción de compra ejecutada por un vendedor: error `50114`.
+- Venta registrada por un usuario inactivo: error `50002`.
 
 ## 5. Consultas opcionales
 
