@@ -23,9 +23,23 @@ BEGIN
             THROW 50001, 'El detalle de la venta está vacío.', 1;
         END;
 
-        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario)
+        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            THROW 50002, 'El usuario que registra la venta no existe.', 1;
+            THROW 50002, 'El usuario que registra la venta no existe o está inactivo.', 1;
+        END;
+
+        -- Regla de negocio: tanto el Administrador como el Vendedor pueden
+        -- registrar ventas, pero deben estar activos y tener uno de esos roles.
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Usuario u
+            INNER JOIN Rol r ON r.IdRol = u.IdRol
+            WHERE u.IdUsuario = @IdUsuario
+              AND u.Activo = 1
+              AND r.Nombre IN ('Administrador', 'Vendedor')
+        )
+        BEGIN
+            THROW 50007, 'El usuario debe estar activo y tener rol Administrador o Vendedor para registrar ventas.', 1;
         END;
 
         IF (@IdCliente IS NOT NULL AND NOT EXISTS (SELECT 1 FROM Cliente WHERE IdCliente = @IdCliente))
@@ -77,13 +91,19 @@ BEGIN
         INSERT INTO Venta (IdVenta, IdCliente, IdUsuario, Fecha, MedioPago, Total, Estado)
         VALUES (@IdVenta, @IdCliente, @IdUsuario, GETDATE(), @MedioPago, @Total, 'CONFIRMADA');
 
-        -- Insertar Detalle
+        -- Insertar Detalle.
+        -- El trigger TR_DetalleVenta_Insert solo acepta inserciones que vengan
+        -- de este SP. La marca de sesion se limpia siempre al salir.
+        EXEC sp_set_session_context @key = N'PermitirDetalleVenta', @value = 1;
+
         INSERT INTO DetalleVenta (IdVenta, NroLinea, IdVariante, Cantidad, PrecioUnitario, Descuento)
         SELECT 
             @IdVenta,
             ROW_NUMBER() OVER (ORDER BY IdVariante),
             IdVariante, Cantidad, PrecioUnitario, Descuento
         FROM @Detalle;
+
+        EXEC sp_set_session_context @key = N'PermitirDetalleVenta', @value = NULL;
 
         COMMIT TRANSACTION;
 
@@ -94,6 +114,9 @@ BEGIN
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
+
+        -- El session context no se revierte con ROLLBACK.
+        EXEC sp_set_session_context @key = N'PermitirDetalleVenta', @value = NULL;
 
         THROW;
     END CATCH

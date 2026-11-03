@@ -92,15 +92,14 @@ WHERE NOT EXISTS (
     WHERE vp.IdProducto = p.IdProducto
 );
 
--- 3.3 Subconsulta con ALL: Variantes más caras que TODOS los productos de la marca 'Marca Ejemplo'
--- Si no tienen esa marca, cambien el string por una que exista en su tabla.
+-- 3.3 Subconsulta con ALL: Variantes más caras que TODOS los productos de la marca 'Nangallery'
 SELECT vp.SKU, vp.PrecioVenta 
 FROM VarianteProducto vp
 WHERE vp.PrecioVenta > ALL (
     SELECT p.PrecioBase 
     FROM Producto p
     INNER JOIN Marca m ON p.IdMarca = m.IdMarca
-    WHERE m.Nombre = 'Marca Ejemplo'
+    WHERE m.Nombre = 'Nangallery'
 );
 GO
 

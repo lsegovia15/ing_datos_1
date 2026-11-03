@@ -1,4 +1,4 @@
-# TPO – Sistema de gestión para local de ropa
+# SIAM – Sistema de gestión para local de ropa
 
 ## 1. Catálogo
 
@@ -12,12 +12,11 @@ Se relaciona con:
 
 - **Categoría**
 - **Marca**
-- **CategoríaSegmento / Público**
 - **VarianteProducto**
 
 Ejemplo:
 
-> Remera Oversize Graffiti → Categoría: Remeras → Marca: Nangallery → Público: Hombre.
+> Remera Oversize Graffiti → Categoría: Remeras → Marca: Nangallery → Variante para público Hombre.
 
 ### Categoría
 
@@ -35,17 +34,19 @@ Ejemplos:
 
 Permite identificar la marca a la que pertenece cada producto.
 
-### CategoríaSegmento
+### Segmento
 
-Indica **a qué público está destinado el producto**.
+Indica **a qué público está destinada cada variante del producto**.
 
 Ejemplos:
 
 - Hombre
 - Mujer
 - Niño
+- Niña
+- Unisex
 
-> En el dibujo aparece como **“Público”**. Para el TPO se utilizará `CategoriaSegmento`, ya que representa el segmento al que está destinado el producto.
+> En el dibujo aparece como **“Público”**. Para el TPO se utilizará `Segmento`, ya que representa el segmento al que está destinada la variante.
 
 ### VarianteProducto
 
@@ -54,6 +55,7 @@ Representa una combinación específica de un producto con sus características 
 Contendrá:
 
 - Producto
+- Segmento (público destinatario)
 - Talle
 - Color
 - Stock
@@ -147,7 +149,7 @@ Tipos de movimiento:
 
 Se relaciona con **VarianteProducto**.
 
-Esta tabla también permitirá posteriormente implementar mecanismos de control del stock mediante triggers.
+El stock se controla automáticamente mediante triggers y procedimientos almacenados: cada movimiento actualiza `VarianteProducto.StockActual` y las alertas de stock mínimo se registran en la tabla auxiliar `AlertaStock`.
 
 ---
 
@@ -192,12 +194,11 @@ CATEGORIA
     ▼
 PRODUCTO ◄──────── MARCA
     │
-    │
-    └──────── CATEGORIA_SEGMENTO
-    │
     │ 1:N
     ▼
 VARIANTE_PRODUCTO
+    │
+    ├──────── SEGMENTO
     │
     ├──────── TALLE
     │
@@ -268,11 +269,11 @@ MOVIMIENTO_STOCK
 |---|---|---|
 | 1 | **Producto** | Información general del producto |
 | 2 | **Categoria** | Tipo de producto |
-| 3 | **CategoriaSegmento** | Público al que está destinado |
+| 3 | **Segmento** | Público al que está destinada la variante |
 | 4 | **Marca** | Marca del producto |
 | 5 | **Talle** | Talles disponibles |
 | 6 | **Color** | Colores disponibles |
-| 7 | **VarianteProducto** | Producto + talle + color + stock |
+| 7 | **VarianteProducto** | Producto + segmento + talle + color + stock |
 | 8 | **Proveedor** | Proveedores de mercadería |
 | 9 | **Compra** | Compras realizadas |
 | 10 | **DetalleCompra** | Productos incluidos en cada compra |
@@ -282,36 +283,47 @@ MOVIMIENTO_STOCK
 | 14 | **MovimientoStock** | Entradas, salidas y ajustes de stock |
 | 15 | **Usuario** | Personas que utilizan el sistema |
 | 16 | **Rol** | Permisos/tipo de usuario |
+| 17 | **HistorialPrecio** | Auxiliar: auditoría de cambios de precio |
+| 18 | **AlertaStock** | Auxiliar: alertas de stock mínimo |
 
-**Total: 16 tablas.**
+**Total: 16 tablas principales + 2 auxiliares (18 tablas).**
+
+### 7.1 Vistas de negocio
+
+- `vw_StockVariante`: stock y estado por variante.
+- `vw_VentasDetalladas`: ventas con cliente, vendedor y estado.
+- `vw_ProductosPremium`: productos activos con precio superior al promedio.
+- `vw_CategoriasMasVendidasPorSegmento`: categoría más vendida dentro de cada segmento.
 
 ---
 
 # 8. Consideraciones del modelo
 
-### CategoríaSegmento
+### Segmento
 
-La tabla `CategoriaSegmento` representa el público al que está destinado un producto.
+La tabla `Segmento` representa el público al que está destinada una variante de producto.
 
 Ejemplo:
 
 ```text
-CategoriaSegmento
------------------
+Segmento
+--------
 1 | Hombre
 2 | Mujer
 3 | Niño
+4 | Niña
+5 | Unisex
 ```
 
-El `Producto` tendrá una referencia hacia `CategoriaSegmento` mediante una clave foránea.
+La `VarianteProducto` tendrá una referencia hacia `Segmento` mediante una clave foránea. Esto permite que un mismo producto tenga variantes para distintos públicos.
 
 Esto permite realizar consultas como:
 
-- Mostrar todos los productos destinados a hombres.
-- Mostrar todos los productos destinados a mujeres.
-- Mostrar todos los productos destinados a niños.
+- Mostrar todas las variantes destinadas a hombres.
+- Mostrar todas las variantes destinadas a mujeres.
+- Mostrar todas las variantes destinadas a niños.
 - Consultar el stock disponible por segmento.
-- Obtener las categorías más vendidas para cada segmento.
+- Obtener las categorías más vendidas para cada segmento con la vista `vw_CategoriasMasVendidasPorSegmento`.
 
 ### VarianteProducto
 
@@ -331,16 +343,17 @@ De esta forma, el stock no se almacena simplemente para el producto general, sin
 
 ---
 
-# 9. Próximo paso
+# 9. Estado de implementación
 
-Una vez aprobada esta propuesta de tablas, se deberán definir:
+El modelo está implementado en los scripts SQL del repositorio:
 
-1. Los atributos de cada tabla.
-2. Las claves primarias (PK).
-3. Las claves foráneas (FK).
-4. Las relaciones y cardinalidades.
-5. Las restricciones de integridad.
-6. El DER definitivo.
-7. El modelo relacional.
-8. Las consultas SQL.
-9. Los triggers, procedimientos, cursores y roles requeridos por el TPO.
+- `sql/init_db.sql`: 16 tablas principales, claves y restricciones.
+- `sql/siam_triggers.sql`: triggers y 2 tablas auxiliares (`HistorialPrecio`, `AlertaStock`).
+- `sql/funciones.sql`: funciones de estado de stock y resumen de ventas.
+- `sql/vistas.sql`: vistas de negocio, incluida `vw_CategoriasMasVendidasPorSegmento`.
+- `sql/sp/`: tipos TVP y procedimientos de ventas, compras, anulaciones y ajustes.
+- `sql/cursores.sql`: informe de reposición de stock.
+- `sql/seed_data.sql`: datos de prueba y casos borde.
+- `sql/seguridad.sql`: logins, usuarios, roles y permisos del motor.
+
+El orden de ejecución completo está documentado en `docs/ORDEN_EJECUCION.md` y automatizado en `sql/00_master.sql`.
