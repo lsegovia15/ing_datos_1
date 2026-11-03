@@ -67,3 +67,26 @@ SELECT Nombre, PrecioBase, Marca
 FROM vw_ProductosPremium
 ORDER BY PrecioBase DESC;
 ```
+
+---
+
+## vw_CategoriasMasVendidasPorSegmento
+
+**Objetivo:** saber cuál es la categoría más vendida dentro de cada segmento (hombre, mujer, niño, niña o unisex).
+
+**Información presentada:** segmento, categoría, unidades vendidas, total vendido y posición en el ranking. Solo muestra la categoría que queda primera en cada segmento.
+
+**Tablas involucradas:** `DetalleVenta`, `Venta`, `VarianteProducto`, `Producto`, `Categoria`, `Segmento`.
+
+**Motivo de utilización:** sirve para decidir qué reponer y qué exhibir según el público. También muestra por qué el segmento se modeló en la variante y no en el producto: el mismo producto puede venderse en distintos segmentos, y esta vista los separa.
+
+**Cómo funciona:**
+- Una primera expresión de tabla común (`VentasPorCategoria`) suma unidades y total de las ventas `CONFIRMADA`, agrupando por segmento y categoría.
+- Una segunda (`Ranking`) numera las categorías dentro de cada segmento con `RANK() OVER (PARTITION BY IdSegmento ORDER BY UnidadesVendidas DESC, TotalVendido DESC)`.
+- El `SELECT` final se queda con `Posicion = 1`. Si dos categorías empatan en unidades y total, `RANK` les da la misma posición y aparecen las dos.
+
+```sql
+SELECT Segmento, Categoria, UnidadesVendidas, TotalVendido
+FROM vw_CategoriasMasVendidasPorSegmento
+ORDER BY Segmento;
+```

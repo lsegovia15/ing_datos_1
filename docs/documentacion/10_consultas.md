@@ -105,6 +105,6 @@ ORDER BY Anio DESC, Mes DESC, TotalRecaudado DESC;
 
 Además de estas consultas, hay lógica de consulta encapsulada en otros objetos:
 
-- **Vistas** (`vw_StockVariante`, `vw_VentasDetalladas`, `vw_ProductosPremium`): ver la [sección 12](12_vistas.md).
+- **Vistas** (`vw_StockVariante`, `vw_VentasDetalladas`, `vw_ProductosPremium`, `vw_CategoriasMasVendidasPorSegmento`): ver la [sección 12](12_vistas.md).
 - **Función** `fn_ResumenVentasPorUsuario`: un resumen de ventas parametrizado por fechas. Ver la [sección 16](16_funciones.md).
 - **Subconsultas**: ver la [sección 11](11_subconsultas.md).

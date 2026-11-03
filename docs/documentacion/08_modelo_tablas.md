@@ -1,6 +1,6 @@
 # 8. Modelo de tablas
 
-Scripts: `sql/init_db.sql` (tablas, restricciones e índices) y `sql/firme38_triggers.sql` (tablas de auditoría `HistorialPrecio` y `AlertaStock`).
+Scripts: `sql/init_db.sql` (tablas, restricciones e índices) y `sql/siam_triggers.sql` (tablas de auditoría `HistorialPrecio` y `AlertaStock`).
 
 ## Tablas por módulo
 

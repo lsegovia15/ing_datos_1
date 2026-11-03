@@ -13,6 +13,7 @@ Implementar las reglas en la base de datos, y no en una aplicación, garantiza q
 - Las **restricciones** (`CHECK`, `UNIQUE`, `FK`) impiden los datos inválidos desde el primer nivel.
 - Los **triggers** mantienen automáticamente el stock, los totales, el historial de precios y las alertas, y bloquean operaciones prohibidas, como borrar una venta.
 - Los **stored procedures** agrupan las operaciones de varios pasos en transacciones: una venta se registra completa o no se registra.
+- Los **permisos** del motor hacen que cada rol solo pueda operar a través de esos SPs, sin tocar las tablas directamente.
 
 En la práctica, el sistema no puede quedar en un estado inconsistente aunque se use de forma incorrecta.
 
@@ -23,9 +24,9 @@ Una de las lecciones más importantes fue que una operación correcta para un so
 ## Limitaciones y trabajo futuro
 
 - **Identificadores manuales:** las claves de ventas, compras y movimientos se generan con `MAX + 1` bloqueado. Funciona correctamente, pero serializa las operaciones. Con mucho volumen convendría usar `IDENTITY` o `SEQUENCE`.
-- **Usuario de la operación:** los SPs reciben el `IdUsuario` como parámetro. Una mejora sería obtenerlo de la sesión de base de datos, para que no se pueda operar a nombre de otro.
-- **Contraseñas:** se almacenan tal como se ingresan. Deberían guardarse como hash con *salt*.
-- **Compras por SP:** las compras se gestionan con sentencias directas controladas por triggers. Un `SP_RegistrarCompra` análogo al de ventas unificaría la forma de operar.
+- **Usuario de la operación:** los SPs reciben el `IdUsuario` como parámetro y validan su rol, pero no lo relacionan con el login conectado. Una mejora sería obtenerlo de la sesión de base de datos, para que no se pueda operar a nombre de otro.
+- **Contraseñas:** se guardan como hash `SHA2_256`, pero sin *salt*. Agregarlo evitaría que dos contraseñas iguales tengan el mismo hash.
+- **Anulación de compras:** existe la transición `PENDIENTE → ANULADA`, pero no hay un SP que la encapsule como `SP_AnularVenta` lo hace con las ventas.
 - **Devoluciones parciales:** hoy solo se puede anular una venta completa. Devolver una sola prenda requeriría un nuevo tipo de operación.
 
 ## Cierre

@@ -83,7 +83,7 @@ WHERE vp.PrecioVenta > ALL (
     SELECT p.PrecioBase
     FROM Producto p
     INNER JOIN Marca m ON p.IdMarca = m.IdMarca
-    WHERE m.Nombre = 'Marca Ejemplo'
+    WHERE m.Nombre = 'Nangallery'
 );
 ```
 
