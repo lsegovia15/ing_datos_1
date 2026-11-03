@@ -130,6 +130,22 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- El SP_RegistrarVenta marca la sesion para poder insertar el detalle.
+    -- Una insercion directa (fuera del SP) no tiene esa marca y se rechaza.
+    IF ISNULL(CAST(SESSION_CONTEXT(N'PermitirDetalleVenta') AS INT), 0) <> 1
+        THROW 51013, 'Inserción directa de líneas no permitida: use SP_RegistrarVenta.', 1;
+
+    -- Defensa adicional: todas las lineas de una venta deben insertarse en la
+    -- misma sentencia. Si la venta ya tenia lineas, el conteo no coincide y se
+    -- rechaza el agregado de filas sueltas.
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE (SELECT COUNT(*) FROM DetalleVenta dv WHERE dv.IdVenta = i.IdVenta)
+            <> (SELECT COUNT(*) FROM inserted i2 WHERE i2.IdVenta = i.IdVenta)
+    )
+        THROW 51014, 'No se pueden agregar líneas a una venta ya procesada.', 1;
+
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN Venta v ON v.IdVenta = i.IdVenta
@@ -246,7 +262,11 @@ BEGIN
     INSERT INTO MovimientoStock
            (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, IdCompra, Observacion)
     SELECT @base + ROW_NUMBER() OVER (ORDER BY dc.IdCompra, dc.NroLinea),
-           dc.IdVariante, i.IdUsuario, GETDATE(), 'ENTRADA', dc.Cantidad, dc.IdCompra,
+           dc.IdVariante,
+           -- El usuario que recibe llega por SESSION_CONTEXT desde
+           -- SP_RecibirCompra; si se hace un UPDATE directo, queda el comprador.
+           ISNULL(CAST(SESSION_CONTEXT(N'IdUsuarioOperacion') AS INT), i.IdUsuario),
+           GETDATE(), 'ENTRADA', dc.Cantidad, dc.IdCompra,
            CONCAT('Recepcion compra ', dc.IdCompra)
     FROM inserted i
     JOIN deleted d        ON d.IdCompra  = i.IdCompra
@@ -309,23 +329,23 @@ GO
 
 
 
--- 8. VarianteProducto: alerta cuando el stock cruza el minimo
---    (solo al cruzar, no en cada venta posterior)
+-- 8. VarianteProducto: alerta cuando el stock cruza el minimo.
+--    Cubre INSERT (variante creada ya con stock bajo/cero) y UPDATE
+--    (solo al cruzar el minimo, no en cada venta posterior).
 
 CREATE OR ALTER TRIGGER TR_Variante_AlertaStock
 ON VarianteProducto
-AFTER UPDATE
+AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF NOT UPDATE(StockActual) RETURN;
 
     INSERT INTO AlertaStock (IdVariante, StockActual, StockMinimo)
     SELECT i.IdVariante, i.StockActual, i.StockMinimo
     FROM inserted i
-    JOIN deleted d ON d.IdVariante = i.IdVariante
+    LEFT JOIN deleted d ON d.IdVariante = i.IdVariante
     WHERE i.StockActual <= i.StockMinimo
-      AND d.StockActual >  d.StockMinimo;
+      AND (d.IdVariante IS NULL OR d.StockActual > d.StockMinimo);
 END;
 GO
 

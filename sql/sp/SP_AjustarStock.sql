@@ -17,15 +17,29 @@ BEGIN
     BEGIN TRY
         SET XACT_ABORT ON;
 
-        -- 1. VALIDACIONES BÁSICAS
+        -- 1. VALIDACIONES BÁSICAS Y DE SEGURIDAD LÓGICA
         IF (@NuevaCantidad < 0)
         BEGIN
             THROW 50020, 'La nueva cantidad de stock no puede ser negativa.', 1;
         END;
 
-        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario)
+        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            THROW 50021, 'El usuario que realiza el ajuste no existe.', 1;
+            THROW 50021, 'El usuario que realiza el ajuste no existe o está inactivo.', 1;
+        END;
+
+        -- Defensa en profundidad: aunque seguridad.sql deniega EXECUTE al
+        -- vendedor, el SP vuelve a validar la regla de negocio por sí mismo.
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Usuario u
+            INNER JOIN Rol r ON r.IdRol = u.IdRol
+            WHERE u.IdUsuario = @IdUsuario
+              AND u.Activo = 1
+              AND r.Nombre = 'Administrador'
+        )
+        BEGIN
+            THROW 50023, 'Solo un usuario Administrador activo puede ajustar stock.', 1;
         END;
 
         -- 2. TRANSACCIÓN
