@@ -2,11 +2,9 @@ USE SIAM;
 GO
 
 -- PARTE 1: OPERACIONES DE CONJUNTOS (UNION)
--- Basado en la clase "Advanced SQL: Operaciones de Conjuntos"
 
--- 1.1 Reporte unificado de Compras y Ventas (Caja Diaria)
--- Une dos consultas que tienen la misma cantidad de columnas y tipos de datos.
--- UNION elimina duplicados (aunque acá es difícil que los haya por los IDs).
+-- 1.1 Reporte de compras y ventas
+-- Une las compras y ventas en un mismo listado.
 
 SELECT
     'VENTA' AS TipoOperacion,
@@ -37,9 +35,10 @@ ORDER BY Fecha DESC;
 GO
 
 -- PARTE 2: AGRUPACIÓN Y AGREGACIÓN (GROUP BY + HAVING)
--- Basado en la Clase IX (COUNT, SUM, AVG, MAX, MIN)
 
--- 2.1 Ranking de Vendedores: ¿Cuánto vendió cada uno y cuál es su ticket promedio?
+-- 2.1 Ranking de vendedores
+-- Muestra las ventas y el promedio facturado por cada vendedor.
+
 SELECT 
     u.NombreUsuario,
     u.Nombre + ' ' + u.Apellido AS NombreCompleto,
@@ -50,12 +49,14 @@ FROM Venta v
 INNER JOIN Usuario u ON v.IdUsuario = u.IdUsuario
 WHERE v.Estado = 'CONFIRMADA'
 GROUP BY u.NombreUsuario, u.Nombre, u.Apellido
-HAVING SUM(v.Total) > 0 -- Solo mostramos vendedores que hayan facturado algo
+HAVING SUM(v.Total) > 0 -- Muestra vendedores que hayan realizado ventas.
 ORDER BY TotalFacturado DESC;
 GO
 
 
--- 2.2 Ventas agrupadas por Mes y Medio de Pago (Uso de funciones de fecha de la Clase IX)
+-- 2.2 Ventas por mes y medio de pago
+-- Agrupa las ventas para conocer la recaudación de cada mes.
+
 SELECT 
     YEAR(v.Fecha) AS Anio,
     MONTH(v.Fecha) AS Mes,
@@ -70,29 +71,32 @@ GO
 
 
 -- PARTE 3: SUBCONSULTAS LÓGICAS (EXISTS, IN, ALL)
--- Basado en la clase "Advanced SQL: Subconsultas"
 
--- 3.1 Subconsulta con IN: Traer los productos que pertenecen a la categoría 'Buzos' (ejemplo)
+-- 3.1 Subconsulta con IN
+-- Busca los productos que pertenecen a la categoría Buzos.
+
 SELECT p.IdProducto, p.Nombre, p.PrecioBase
 FROM Producto p
 WHERE p.IdCategoria IN (
     SELECT IdCategoria 
     FROM Categoria 
-    WHERE Nombre LIKE '%Buzo%' -- Busca categorías que contengan la palabra Buzo
+    WHERE Nombre LIKE '%Buzo%' -- Busca categorías que contengan Buzo.
 );
 
--- 3.2 Subconsulta con NOT EXISTS: ¿Qué productos NUNCA se vendieron?
--- "Devuelve verdadero si la subconsulta NO encuentra ninguna coincidencia"
+-- 3.2 Subconsulta con NOT EXISTS
+-- Muestra los productos que nunca fueron vendidos.
+
 SELECT p.IdProducto, p.Nombre 
 FROM Producto p
 WHERE NOT EXISTS (
     SELECT 1 
     FROM VarianteProducto vp
     INNER JOIN DetalleVenta dv ON vp.IdVariante = dv.IdVariante
-    WHERE vp.IdProducto = p.IdProducto
+    WHERE vp.IdProducto = p.IdProducto -- Relaciona las variantes con el producto.
 );
+-- 3.3 Subconsulta con ALL
+-- Busca variantes más caras que todos los productos de la marca Nangallery.
 
--- 3.3 Subconsulta con ALL: Variantes más caras que TODOS los productos de la marca 'Nangallery'
 SELECT vp.SKU, vp.PrecioVenta 
 FROM VarianteProducto vp
 WHERE vp.PrecioVenta > ALL (
@@ -105,8 +109,9 @@ GO
 
 -- PARTE 4: SUBCONSULTAS CORRELACIONADAS
 
--- 4.1 Mostrar las variantes cuyo precio de venta supera el promedio de precio de SU MISMA categoría.
--- (La subconsulta depende del producto de la consulta principal)
+-- 4.1 Variantes con precio superior al promedio de su categoría
+-- Compara el precio de cada variante con el promedio de su categoría.
+
 SELECT 
     p.Nombre AS Producto,
     vp.SKU,
@@ -119,6 +124,6 @@ WHERE vp.PrecioVenta > (
     SELECT AVG(vp2.PrecioVenta)
     FROM VarianteProducto vp2
     INNER JOIN Producto p2 ON vp2.IdProducto = p2.IdProducto
-    WHERE p2.IdCategoria = p.IdCategoria -- Acá está la correlación con la consulta de afuera
+    WHERE p2.IdCategoria = p.IdCategoria -- Compara con la misma categoría.
 );
 GO
