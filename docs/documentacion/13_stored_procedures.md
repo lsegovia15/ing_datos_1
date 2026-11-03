@@ -1,16 +1,30 @@
 # 13. Stored Procedures
 
-Scripts: `sql/sp/SP_RegistrarVenta.sql`, `sql/sp/SP_AnularVenta.sql`, `sql/sp/SP_AjustarStock.sql`, `sql/cursores.sql`
+Scripts: `sql/sp/SP_RegistrarVenta.sql`, `sql/sp/SP_AnularVenta.sql`, `sql/sp/SP_AjustarStock.sql`, `sql/sp/SP_RegistrarCompra.sql`, `sql/sp/SP_RecibirCompra.sql`, `sql/cursores.sql`
 
-Los stored procedures son la única vía para las operaciones que afectan el stock por venta o por ajuste. Todos siguen la misma estructura:
+Los stored procedures son la vía para todas las operaciones que mueven stock: ventas, anulaciones, ajustes y compras. Todos siguen la misma estructura:
 
 1. `SET NOCOUNT ON` y `SET XACT_ABORT ON`.
-2. Validaciones de parámetros y de existencia de registros, que lanzan `THROW` con un código propio.
+2. Validaciones de parámetros, de existencia de registros y del rol del usuario, que lanzan `THROW` con un código propio.
 3. `BEGIN TRANSACTION` → modificaciones → `COMMIT`.
 4. `BEGIN CATCH`: `ROLLBACK` si hay una transacción abierta y `THROW;` para relanzar el error original.
 5. Un `SELECT` final con el resultado de la operación.
 
 El detalle de los códigos de error está en [17_manejo_errores.md](17_manejo_errores.md).
+
+### Validación del rol dentro del SP
+
+Además de los permisos `EXECUTE` de la [sección 18](18_seguridad.md), cada SP verifica que el `@IdUsuario` recibido esté activo y tenga el rol de aplicación adecuado:
+
+| SP | Rol requerido | Código |
+|---|---|---|
+| `SP_RegistrarVenta` | `Administrador` o `Vendedor` | 50007 |
+| `SP_AnularVenta` | `Administrador` | 50013 |
+| `SP_AjustarStock` | `Administrador` | 50023 |
+| `SP_RegistrarCompra` | `Administrador` | 50107 |
+| `SP_RecibirCompra` | `Administrador` | 50114 |
+
+Es defensa en profundidad: aunque por error se le diera permiso de ejecución a otro rol del motor, la regla de negocio se sigue cumpliendo.
 
 ---
 
@@ -31,7 +45,8 @@ El detalle de los códigos de error está en [17_manejo_errores.md](17_manejo_er
 
 **Validaciones:**
 - El detalle no está vacío (50001).
-- El usuario existe (50002) y el cliente, si se informa, existe (50003).
+- El usuario existe y está activo (50002), y tiene rol `Administrador` o `Vendedor` (50007).
+- El cliente, si se informa, existe (50003).
 - No se repite la misma variante en el carrito (50004).
 - Todas las variantes existen (50005).
 - Hay stock suficiente para cada línea (50006). El mensaje indica el SKU, la cantidad pedida y la disponible.
@@ -40,7 +55,8 @@ El detalle de los códigos de error está en [17_manejo_errores.md](17_manejo_er
 1. Calcula el total: `SUM(Cantidad * PrecioUnitario - Descuento)`.
 2. Genera `IdVenta` como `MAX + 1` con `WITH (UPDLOCK, HOLDLOCK)`, para que dos ventas simultáneas no obtengan el mismo número.
 3. Inserta la cabecera en `Venta` con estado `CONFIRMADA`.
-4. Inserta las líneas en `DetalleVenta`. El trigger `TR_DetalleVenta_Insert` genera los movimientos `SALIDA`, que a su vez descuentan el stock.
+4. Marca la sesión con `sp_set_session_context` (clave `PermitirDetalleVenta`) e inserta las líneas en `DetalleVenta`. El trigger `TR_DetalleVenta_Insert` solo acepta líneas que llegan con esa marca, así que no se pueden cargar ventas por fuera del SP. El trigger genera los movimientos `SALIDA`, que a su vez descuentan el stock.
+5. Limpia la marca de la sesión, tanto al terminar como en el `CATCH`.
 
 **Resultado:** `IdVentaGenerada`, `TotalVenta`, `Mensaje`.
 
@@ -72,9 +88,9 @@ EXEC SP_RegistrarVenta
 | `@IdUsuario` | `INT` | Usuario que autoriza la anulación (queda registrado para auditoría) |
 
 **Validaciones:**
+- El usuario existe (50012) y es un `Administrador` activo (50013).
 - La venta existe (50010).
-- La venta no está ya anulada (50011).
-- El usuario existe (50012).
+- La venta no está ya anulada (50011). La venta se lee con bloqueo y el `UPDATE` vuelve a exigir `Estado = 'CONFIRMADA'`, así que dos anulaciones simultáneas no devuelven el stock dos veces.
 
 **Procesamiento y modificación de datos:**
 1. Guarda `@IdUsuario` en el contexto de sesión (`sp_set_session_context`, clave `IdUsuarioOperacion`).
@@ -108,7 +124,7 @@ EXEC SP_AnularVenta @IdVenta = 15, @IdUsuario = 1;
 
 **Validaciones:**
 - La nueva cantidad no es negativa (50020).
-- El usuario existe (50021).
+- El usuario existe y está activo (50021), y es `Administrador` (50023).
 - La variante existe (50022).
 
 **Procesamiento y modificación de datos:**
@@ -127,6 +143,86 @@ EXEC SP_AjustarStock
      @NuevaCantidad = 7,
      @IdUsuario     = 1,
      @Observacion   = 'Recuento mensual: faltante';
+```
+
+---
+
+## SP_RegistrarCompra
+
+**Situación real:** el administrador hace un pedido a un proveedor. La compra queda pendiente hasta que llega la mercadería.
+
+**Parámetros de entrada:**
+
+| Parámetro | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `@IdProveedor` | `INT` | Sí | Proveedor al que se compra |
+| `@IdUsuario` | `INT` | Sí | Administrador que registra la compra |
+| `@NroComprobante` | `VARCHAR(30)` | No (`NULL`) | Número de factura o remito del proveedor |
+| `@Detalle` | `TipoDetalleCompra READONLY` | Sí | Líneas de la compra: `IdVariante`, `Cantidad`, `CostoUnitario` |
+
+**Validaciones:**
+- El detalle no está vacío (50100).
+- El proveedor existe (50101).
+- El usuario existe y está activo (50102), y es `Administrador` (50107).
+- No se repite la misma variante (50103).
+- Las cantidades son mayores a cero (50104) y los costos no son negativos (50105).
+- Todas las variantes existen (50106).
+
+**Procesamiento y modificación de datos:**
+1. Calcula el total: `SUM(Cantidad * CostoUnitario)`.
+2. Genera `IdCompra` como `MAX + 1` con `WITH (UPDLOCK, HOLDLOCK)`.
+3. Inserta la cabecera en `Compra` con estado `PENDIENTE`.
+4. Inserta las líneas en `DetalleCompra`, numeradas con `ROW_NUMBER()`. El trigger `TR_DetalleCompra_Control` recalcula el total.
+
+El stock **no** cambia en este paso: la mercadería todavía no llegó.
+
+**Resultado:** `IdCompraGenerada`, `TotalCompra`, `Mensaje`.
+
+**Ejemplo:**
+```sql
+DECLARE @Detalle TipoDetalleCompra;
+INSERT INTO @Detalle (IdVariante, Cantidad, CostoUnitario)
+VALUES (1, 10, 8000),
+       (2, 5, 8000);
+
+EXEC SP_RegistrarCompra
+     @IdProveedor    = 1,
+     @IdUsuario      = 1,
+     @NroComprobante = 'A-0001-00001234',
+     @Detalle        = @Detalle;
+```
+
+---
+
+## SP_RecibirCompra
+
+**Situación real:** llega la mercadería de una compra pendiente y se ingresa al stock.
+
+**Parámetros de entrada:**
+
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `@IdCompra` | `INT` | Compra que se recibe |
+| `@IdUsuario` | `INT` | Usuario que recibe físicamente la mercadería |
+
+**Validaciones:**
+- El usuario existe y está activo (50113), y es `Administrador` (50114).
+- La compra existe (50110).
+- La compra está `PENDIENTE` (50112).
+- La compra tiene líneas (50111).
+
+**Procesamiento y modificación de datos:**
+1. Lee el estado de la compra con `WITH (UPDLOCK, HOLDLOCK)`, para que dos recepciones simultáneas no ingresen el stock dos veces.
+2. Guarda `@IdUsuario` en el contexto de sesión (clave `IdUsuarioOperacion`).
+3. Cambia `Compra.Estado` a `RECIBIDA`. El `UPDATE` vuelve a exigir `Estado = 'PENDIENTE'`; si no afectó filas, lanza 50112.
+4. El trigger `TR_Compra_CambioEstado` inserta un movimiento `ENTRADA` por cada línea, a nombre de quien recibe.
+5. Limpia el contexto de sesión, también en el `CATCH`.
+
+**Resultado:** `IdCompraRecibida`, `Mensaje`.
+
+**Ejemplo:**
+```sql
+EXEC SP_RecibirCompra @IdCompra = 3, @IdUsuario = 1;
 ```
 
 ---

@@ -34,7 +34,7 @@ END CATCH
 - **`SET XACT_ABORT ON`:** ante cualquier error en tiempo de ejecución, SQL Server marca la transacción para revertirla completa. Así no queda una venta con cabecera pero sin detalle.
 - **`IF @@TRANCOUNT > 0 ROLLBACK`:** revierte solo si hay una transacción abierta (un error de validación ocurre antes de abrirla).
 - **`THROW;` sin parámetros en el `CATCH`:** relanza el error **original** conservando número, mensaje y línea. Se eligió en lugar de `RAISERROR` porque `RAISERROR` genera un error nuevo y pierde el número original.
-- **Limpieza de estado:** `SP_AnularVenta` limpia el contexto de sesión en el `CATCH`, porque no se revierte con el `ROLLBACK`. `SP_InformeReposicionStock` cierra y libera el cursor en el `CATCH`.
+- **Limpieza de estado:** `SP_RegistrarVenta`, `SP_AnularVenta` y `SP_RecibirCompra` limpian el contexto de sesión en el `CATCH`, porque no se revierte con el `ROLLBACK`. `SP_InformeReposicionStock` cierra y libera el cursor en el `CATCH`.
 
 ## Errores dentro de transacciones
 
@@ -50,6 +50,8 @@ Dos usuarios operando al mismo tiempo pueden generar errores aunque cada operaci
 | Dos movimientos obtienen el mismo `IdMovimiento` | Igual, en `SP_AjustarStock` y en los triggers que insertan movimientos |
 | Vender la última unidad dos veces | El trigger `TR_MovimientoStock_AplicarStock` valida dentro de la transacción, y el `CHECK (StockActual >= 0)` es la última barrera |
 | Un ajuste calculado sobre un stock que cambió | `SP_AjustarStock` lee el stock bloqueado dentro de la transacción |
+| Dos compras obtienen el mismo `IdCompra` | `SP_RegistrarCompra` usa `MAX + 1` con `WITH (UPDLOCK, HOLDLOCK)` |
+| Anular una venta o recibir una compra dos veces a la vez | El SP lee el estado con bloqueo y el `UPDATE` vuelve a exigir el estado anterior (`CONFIRMADA` o `PENDIENTE`); si no afecta filas, lanza 50011 o 50112 |
 | Deadlocks | Todos los caminos bloquean en el mismo orden: `Venta` → `MovimientoStock` → `VarianteProducto` |
 
 Se verificó con cuatro sesiones simultáneas registrando ventas, anulaciones y ajustes sobre las mismas variantes: no hubo errores ni deadlocks, y el stock final coincidió con la suma de los movimientos.
@@ -62,13 +64,16 @@ Se verificó con cuatro sesiones simultáneas registrando ventas, anulaciones y 
 | Datos inválidos | Ajustar stock a una cantidad negativa | SP | 50020 |
 | Violaciones de restricciones | SKU, DNI, CUIT o email duplicado | `UNIQUE` | 2627 (motor) |
 | Violaciones de restricciones | Venta con un cliente o variante inexistente (sin pasar por el SP) | `FK` | 547 (motor) |
-| Registros inexistentes | Venta, usuario, cliente o variante que no existe | SP | 50002, 50003, 50005, 50010, 50012, 50021, 50022 |
-| Parámetros incorrectos | Carrito vacío o con una variante repetida | SP | 50001, 50004 |
+| Registros inexistentes | Venta, compra, usuario, cliente, proveedor o variante que no existe | SP | 50002, 50003, 50005, 50010, 50012, 50021, 50022, 50101, 50102, 50106, 50110, 50113 |
+| Parámetros incorrectos | Venta o compra vacía, variante repetida, cantidad o costo inválido | SP | 50001, 50004, 50100, 50103, 50104, 50105 |
+| Permisos insuficientes | Un vendedor intenta anular, ajustar stock o registrar o recibir compras | SP | 50007, 50013, 50023, 50107, 50114 |
+| Permisos insuficientes | Acceso directo a tablas o SPs no permitidos para el rol del motor | `DENY` | 229, 230 (motor) |
 | Operaciones no permitidas | Anular una venta ya anulada, reactivar una anulada | SP / trigger | 50011, 51020 |
+| Operaciones no permitidas | Insertar líneas de venta sin pasar por el SP, o agregarlas a una venta ya cargada | Trigger | 51013, 51014 |
 | Operaciones no permitidas | Editar o borrar movimientos, ventas, líneas de venta o compras | Trigger | 51003, 51012, 51050, 51051 |
 | Operaciones no permitidas | Vender sin stock, vender un producto inactivo | SP / trigger | 50006, 51002, 51011 |
 | Operaciones no permitidas | Operar con un usuario inactivo | Trigger | 51004, 51005 |
-| Operaciones no permitidas | Modificar una compra ya recibida o recibirla vacía | Trigger | 51030, 51031, 51040 |
+| Operaciones no permitidas | Modificar una compra ya recibida o recibirla vacía | SP / trigger | 50111, 50112, 51030, 51031, 51040 |
 | Errores durante transacciones | Falla a mitad de una venta | `XACT_ABORT` + `ROLLBACK` | — |
 
 ## Catálogo de códigos propios
@@ -77,23 +82,40 @@ Los rangos están separados para identificar de inmediato el origen del error:
 
 | Rango | Origen |
 |---|---|
-| 50001 – 50099 | Stored procedures |
+| 50001 – 50099 | Stored procedures de ventas y stock |
+| 50100 – 50199 | Stored procedures de compras |
 | 51001 – 51099 | Triggers |
 
 | Código | Origen | Mensaje |
 |---|---|---|
 | 50001 | `SP_RegistrarVenta` | El detalle de la venta está vacío. |
-| 50002 | `SP_RegistrarVenta` | El usuario que registra la venta no existe. |
+| 50002 | `SP_RegistrarVenta` | El usuario que registra la venta no existe o está inactivo. |
 | 50003 | `SP_RegistrarVenta` | El cliente especificado no existe. |
 | 50004 | `SP_RegistrarVenta` | No se puede repetir la misma variante en la misma venta. |
 | 50005 | `SP_RegistrarVenta` | Una o más variantes especificadas no existen. |
 | 50006 | `SP_RegistrarVenta` | Stock insuficiente para la variante: *SKU*. Solicitado: *n*. Disponible: *m* |
+| 50007 | `SP_RegistrarVenta` | El usuario debe estar activo y tener rol Administrador o Vendedor para registrar ventas. |
 | 50010 | `SP_AnularVenta` | La venta especificada no existe. |
-| 50011 | `SP_AnularVenta` | La venta ya se encuentra anulada. |
+| 50011 | `SP_AnularVenta` | La venta ya se encuentra anulada (o no está en un estado que permita anularla). |
 | 50012 | `SP_AnularVenta` | El usuario que anula la venta no existe. |
+| 50013 | `SP_AnularVenta` | Solo un usuario Administrador activo puede anular ventas. |
 | 50020 | `SP_AjustarStock` | La nueva cantidad de stock no puede ser negativa. |
-| 50021 | `SP_AjustarStock` | El usuario que realiza el ajuste no existe. |
+| 50021 | `SP_AjustarStock` | El usuario que realiza el ajuste no existe o está inactivo. |
 | 50022 | `SP_AjustarStock` | La variante especificada no existe. |
+| 50023 | `SP_AjustarStock` | Solo un usuario Administrador activo puede ajustar stock. |
+| 50100 | `SP_RegistrarCompra` | El detalle de la compra está vacío. |
+| 50101 | `SP_RegistrarCompra` | El proveedor especificado no existe. |
+| 50102 | `SP_RegistrarCompra` | El usuario que registra la compra no existe o está inactivo. |
+| 50103 | `SP_RegistrarCompra` | No se puede repetir la misma variante en la misma compra. |
+| 50104 | `SP_RegistrarCompra` | Todas las cantidades deben ser mayores a cero. |
+| 50105 | `SP_RegistrarCompra` | El costo unitario no puede ser negativo. |
+| 50106 | `SP_RegistrarCompra` | Una o más variantes especificadas no existen. |
+| 50107 | `SP_RegistrarCompra` | Solo un usuario Administrador activo puede registrar compras. |
+| 50110 | `SP_RecibirCompra` | La compra especificada no existe. |
+| 50111 | `SP_RecibirCompra` | No se puede recibir una compra sin líneas de detalle. |
+| 50112 | `SP_RecibirCompra` | Solo una compra en estado PENDIENTE puede recibirse. |
+| 50113 | `SP_RecibirCompra` | El usuario que recibe la compra no existe o está inactivo. |
+| 50114 | `SP_RecibirCompra` | Solo un usuario Administrador activo puede recibir compras. |
 | 51002 | `TR_MovimientoStock_AplicarStock` | Stock insuficiente para registrar el movimiento. |
 | 51003 | `TR_MovimientoStock_Inmutable` | Los movimientos de stock no se modifican: registre un AJUSTE. |
 | 51004 | `TR_Venta_UsuarioActivo` | Un usuario inactivo no puede registrar ventas. |
@@ -101,6 +123,8 @@ Los rangos están separados para identificar de inmediato el origen del error:
 | 51010 | `TR_DetalleVenta_Insert` | Solo se agregan lineas a una venta CONFIRMADA. |
 | 51011 | `TR_DetalleVenta_Insert` | No se puede vender una variante de un producto inactivo. |
 | 51012 | `TR_DetalleVenta_Inmutable` | Las lineas de venta no se modifican ni borran: anule la venta. |
+| 51013 | `TR_DetalleVenta_Insert` | Inserción directa de líneas no permitida: use SP_RegistrarVenta. |
+| 51014 | `TR_DetalleVenta_Insert` | No se pueden agregar líneas a una venta ya procesada. |
 | 51020 | `TR_Venta_CambioEstado` | Una venta anulada no puede volver a confirmarse. |
 | 51030 | `TR_Compra_CambioEstado` | Solo una compra PENDIENTE puede cambiar de estado. |
 | 51031 | `TR_Compra_CambioEstado` | No se puede recibir una compra sin lineas. |

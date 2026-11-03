@@ -1,6 +1,6 @@
 # 14. Triggers
 
-Script: `sql/firme38_triggers.sql`
+Script: `sql/siam_triggers.sql`
 
 Los triggers implementan las reglas que deben cumplirse **siempre**, sin importar desde dónde se modifiquen los datos (un SP, una consulta manual o una aplicación). Si una regla dependiera solo de los SPs, un `INSERT` directo podría saltearla.
 
@@ -22,7 +22,7 @@ El script también crea dos tablas auxiliares que alimentan los triggers: `Histo
 | 8 | `TR_Compra_CambioEstado` | `Compra` | `UPDATE` | `AFTER` |
 | 9 | `TR_DetalleCompra_Control` | `DetalleCompra` | `INSERT`, `UPDATE`, `DELETE` | `AFTER` |
 | 10 | `TR_Variante_HistorialPrecio` | `VarianteProducto` | `UPDATE` | `AFTER` |
-| 11 | `TR_Variante_AlertaStock` | `VarianteProducto` | `UPDATE` | `AFTER` |
+| 11 | `TR_Variante_AlertaStock` | `VarianteProducto` | `INSERT`, `UPDATE` | `AFTER` |
 | 12 | `TR_Venta_NoBorrar` | `Venta` | `DELETE` | `INSTEAD OF` |
 | 13 | `TR_Compra_NoBorrar` | `Compra` | `DELETE` | `INSTEAD OF` |
 
@@ -80,8 +80,10 @@ La anulación de una venta (`DEVOLUCION`), la recepción de una compra (`ENTRADA
 - **Condición:**
   - Si la venta no está `CONFIRMADA`, lanza el error 51010.
   - Si alguna variante pertenece a un producto inactivo, lanza el error 51011.
+  - Si las líneas no vienen de `SP_RegistrarVenta` (falta la marca `PermitirDetalleVenta` en `SESSION_CONTEXT`), lanza el error 51013.
+  - Si la venta ya tenía líneas, lanza el error 51014: todas las líneas de una venta se insertan en una sola sentencia.
 - **Acción:** por cada línea inserta un movimiento `SALIDA` y luego recalcula `Venta.Total` a partir de todas sus líneas.
-- **Regla de negocio:** toda venta descuenta stock, no se venden productos dados de baja y el total de la venta siempre coincide con su detalle.
+- **Regla de negocio:** las ventas solo se registran por el SP, toda venta descuenta stock, no se venden productos dados de baja y el total de la venta siempre coincide con su detalle.
 
 ## 6. TR_DetalleVenta_Inmutable
 
@@ -108,7 +110,7 @@ La anulación de una venta (`DEVOLUCION`), la recepción de una compra (`ENTRADA
 - **Condición:**
   - Si la compra no estaba `PENDIENTE`, lanza el error 51030.
   - Si pasa de `PENDIENTE` a `RECIBIDA` sin líneas, lanza el error 51031.
-- **Acción:** al pasar de `PENDIENTE` a `RECIBIDA`, inserta un movimiento `ENTRADA` por cada línea de la compra.
+- **Acción:** al pasar de `PENDIENTE` a `RECIBIDA`, inserta un movimiento `ENTRADA` por cada línea de la compra. El usuario se toma de `SESSION_CONTEXT('IdUsuarioOperacion')`, que carga `SP_RecibirCompra`; si la compra se recibe con un `UPDATE` directo, queda el usuario que la registró.
 - **Regla de negocio:** las únicas transiciones válidas son `PENDIENTE → RECIBIDA` y `PENDIENTE → ANULADA`. La mercadería entra al stock recién cuando se recibe, no cuando se pide.
 
 ## 9. TR_DetalleCompra_Control
@@ -129,9 +131,9 @@ La anulación de una venta (`DEVOLUCION`), la recepción de una compra (`ENTRADA
 
 ## 11. TR_Variante_AlertaStock
 
-- **Evento:** `AFTER UPDATE` (solo si cambió `StockActual`)
+- **Evento:** `AFTER INSERT, UPDATE`
 - **Tabla:** `VarianteProducto`
-- **Condición:** el stock **cruzó** el mínimo, es decir, antes era mayor al mínimo y ahora es menor o igual.
+- **Condición:** la variante se crea con stock menor o igual al mínimo, o el stock **cruzó** el mínimo (antes era mayor y ahora es menor o igual).
 - **Acción:** inserta una alerta en `AlertaStock` (sin atender).
 - **Regla de negocio:** avisar cuando hay que reponer. Se dispara solo al cruzar el umbral, no en cada venta posterior, para no llenar la tabla de alertas repetidas.
 

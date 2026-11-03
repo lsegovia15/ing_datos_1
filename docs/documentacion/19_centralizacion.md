@@ -27,6 +27,9 @@ Las reglas de negocio del local viven en la base de datos y no en la aplicación
 | Se avisa cuando una variante llega al mínimo | Trigger | `TR_Variante_AlertaStock` |
 | Una venta se registra completa o no se registra | SP + transacción | `SP_RegistrarVenta` |
 | Un ajuste de stock queda registrado con su motivo y su autor | SP | `SP_AjustarStock` |
+| Una compra se registra completa y entra al stock recién al recibirla | SP + trigger | `SP_RegistrarCompra`, `SP_RecibirCompra`, `TR_Compra_CambioEstado` |
+| Las ventas solo se cargan por el SP | SP + trigger | `SP_RegistrarVenta`, `TR_DetalleVenta_Insert` |
+| Solo el administrador anula, ajusta y compra | SP + permisos | Validación de rol en los SPs y `DENY EXECUTE` (sección 18) |
 | La anulación queda registrada a nombre de quien la autoriza | SP + trigger | `SP_AnularVenta`, `TR_Venta_CambioEstado` |
 | El criterio de "stock bajo" es uno solo | Vista / función | `vw_StockVariante`, `fn_EstadoStock` |
 | Cuánto reponer de cada variante | Cursor | `SP_InformeReposicionStock` |
