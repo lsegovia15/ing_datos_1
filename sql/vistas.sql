@@ -1,9 +1,8 @@
 USE SIAM;
 GO
 
--- ============================================================
 -- Vista 1: Control de stock detallado por variante
--- ============================================================
+
 CREATE OR ALTER VIEW vw_StockVariante AS
 SELECT 
     v.IdVariante,
@@ -33,9 +32,9 @@ WHERE p.Activo = 1;
 GO
 
 
--- ============================================================
+
 -- Vista 2: Ventas detalladas
--- ============================================================
+
 CREATE OR ALTER VIEW vw_VentasDetalladas AS
 SELECT
     v.IdVenta,
@@ -54,9 +53,9 @@ LEFT JOIN Usuario u  ON v.IdUsuario = u.IdUsuario;
 GO
 
 
--- ============================================================
+
 -- Vista 3: Productos con precio superior al promedio (activos)
--- ============================================================
+
 CREATE OR ALTER VIEW vw_ProductosPremium AS
 SELECT 
     p.Nombre, 
@@ -72,10 +71,10 @@ WHERE p.Activo = 1 AND p.PrecioBase > (
 GO
 
 
--- ============================================================
+
 -- Vista 4: Categorías más vendidas por segmento
 -- Justifica la entidad Segmento a nivel VarianteProducto.
--- ============================================================
+
 CREATE OR ALTER VIEW vw_CategoriasMasVendidasPorSegmento AS
 WITH VentasPorCategoria AS
 (

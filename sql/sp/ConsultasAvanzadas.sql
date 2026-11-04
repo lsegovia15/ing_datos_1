@@ -3,7 +3,6 @@ GO
 
 -- PARTE 1: OPERACIONES DE CONJUNTOS (UNION)
 
--- 1.1 Reporte de compras y ventas
 -- Une las compras y ventas en un mismo listado.
 
 SELECT
@@ -36,7 +35,7 @@ GO
 
 -- PARTE 2: AGRUPACIÓN Y AGREGACIÓN (GROUP BY + HAVING)
 
--- 2.1 Ranking de vendedores
+-- Ranking de vendedores
 -- Muestra las ventas y el promedio facturado por cada vendedor.
 
 SELECT 
@@ -54,7 +53,7 @@ ORDER BY TotalFacturado DESC;
 GO
 
 
--- 2.2 Ventas por mes y medio de pago
+-- Ventas por mes y medio de pago
 -- Agrupa las ventas para conocer la recaudación de cada mes.
 
 SELECT 
@@ -72,7 +71,6 @@ GO
 
 -- PARTE 3: SUBCONSULTAS LÓGICAS (EXISTS, IN, ALL)
 
--- 3.1 Subconsulta con IN
 -- Busca los productos que pertenecen a la categoría Buzos.
 
 SELECT p.IdProducto, p.Nombre, p.PrecioBase
@@ -83,7 +81,7 @@ WHERE p.IdCategoria IN (
     WHERE Nombre LIKE '%Buzo%' -- Busca categorías que contengan Buzo.
 );
 
--- 3.2 Subconsulta con NOT EXISTS
+-- Subconsulta con NOT EXISTS
 -- Muestra los productos que nunca fueron vendidos.
 
 SELECT p.IdProducto, p.Nombre 
@@ -94,7 +92,7 @@ WHERE NOT EXISTS (
     INNER JOIN DetalleVenta dv ON vp.IdVariante = dv.IdVariante
     WHERE vp.IdProducto = p.IdProducto -- Relaciona las variantes con el producto.
 );
--- 3.3 Subconsulta con ALL
+-- Subconsulta con ALL
 -- Busca variantes más caras que todos los productos de la marca Nangallery.
 
 SELECT vp.SKU, vp.PrecioVenta 
@@ -109,7 +107,7 @@ GO
 
 -- PARTE 4: SUBCONSULTAS CORRELACIONADAS
 
--- 4.1 Variantes con precio superior al promedio de su categoría
+-- Variantes con precio superior al promedio de su categoría
 -- Compara el precio de cada variante con el promedio de su categoría.
 
 SELECT 

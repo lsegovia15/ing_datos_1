@@ -1,9 +1,4 @@
--- ============================================
--- SIAM - Sistema Integrado Administracion Multiple
--- Script de creación de base de datos
--- ============================================
 
--- Re-ejecutable: borra la BD si ya existe
 IF DB_ID('SIAM') IS NOT NULL
 BEGIN
     ALTER DATABASE SIAM SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
@@ -17,9 +12,8 @@ GO
 USE SIAM;
 GO
 
--- ============================================
+
 -- TABLAS
--- ============================================
 
 CREATE TABLE Rol (
     IdRol           INT          NOT NULL,
@@ -208,9 +202,9 @@ CREATE TABLE MovimientoStock (
 );
 GO
 
--- ============================================
+
 -- FOREIGN KEYS
--- ============================================
+
 
 ALTER TABLE Usuario ADD CONSTRAINT FK_Usuario_Rol
     FOREIGN KEY (IdRol) REFERENCES Rol (IdRol)
@@ -289,9 +283,7 @@ ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Venta
     ON DELETE SET NULL;
 GO
 
--- ============================================
 -- ÍNDICES
--- ============================================
 
 CREATE INDEX IX_Usuario_IdRol                 ON Usuario (IdRol);
 CREATE INDEX IX_Producto_IdCategoria          ON Producto (IdCategoria);

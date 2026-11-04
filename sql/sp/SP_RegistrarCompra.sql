@@ -32,8 +32,7 @@ BEGIN
             THROW 50102, 'El usuario que registra la compra no existe o está inactivo.', 1;
         END;
 
-        -- Defensa en profundidad: la regla de negocio se valida también en el
-        -- SP, sin depender únicamente de los permisos EXECUTE del motor.
+      
         IF NOT EXISTS (
             SELECT 1
             FROM Usuario u
