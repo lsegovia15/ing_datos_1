@@ -36,7 +36,7 @@ Cada regla indica con qué mecanismo de la base de datos se implementa. El detal
 | RN-18 | El total de la venta es la suma de `Cantidad × PrecioUnitario − Descuento` de sus líneas. | `SP_RegistrarVenta`, `TR_CalcularTotalVenta` |
 | RN-19 | No se puede vender más que el stock disponible. Si una línea no tiene stock, no se registra ninguna parte de la venta. | `SP_RegistrarVenta`, `TR_DescontarStockVenta`, transacción |
 | RN-20 | Registrar una venta descuenta el stock de cada línea. | `TR_DescontarStockVenta` |
-| RN-21 | Las ventas no se borran: se anulan. Al anular se devuelve el stock y solo un `Administrador` activo puede hacerlo. | `SP_AnularVenta`, `TR_DevolverStockAnulacion`, `TR_NoBorrarVenta`, `DENY DELETE` |
+| RN-21 | Las ventas no se borran: se anulan. Al anular se devuelve el stock y solo un `Administrador` activo puede hacerlo. | `SP_AnularVenta`, `TR_DevolverStockAnulacion`, `TR_NoBorrarVenta`, sin permiso de `DELETE` |
 
 ## Compras
 
@@ -46,7 +46,7 @@ Cada regla indica con qué mecanismo de la base de datos se implementa. El detal
 | RN-23 | Las líneas de una compra se cargan junto con la cabecera, en una sola transacción. | `SP_RegistrarCompra` |
 | RN-24 | El total de la compra es la suma de `Cantidad × CostoUnitario` de sus líneas. | `SP_RegistrarCompra` |
 | RN-25 | La mercadería ingresa al stock recién cuando la compra se recibe. No se puede recibir una compra sin líneas. | `SP_RecibirCompra`, `TR_SumarStockCompra` |
-| RN-26 | Las compras no se borran. | `DENY DELETE` sobre `Compra` y `DetalleCompra` |
+| RN-26 | Las compras no se borran. | Ningún rol tiene permiso de `DELETE` sobre `Compra` y `DetalleCompra` |
 
 ## Personas
 

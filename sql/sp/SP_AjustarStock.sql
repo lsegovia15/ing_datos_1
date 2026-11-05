@@ -1,7 +1,18 @@
 USE SIAM;
 GO
 
-CREATE OR ALTER PROCEDURE SP_AjustarStock
+-- SP_AjustarStock
+-- Corrige el stock de una variante después de un recuento físico.
+-- Recibe la cantidad contada, calcula la diferencia con el stock del
+-- sistema y la registra como movimiento AJUSTE en MovimientoStock.
+-- TR_AplicarAjusteStock aplica esa diferencia sobre StockActual.
+-- Solo puede hacerlo un Administrador activo.
+--
+-- Ejemplo:
+--   EXEC dbo.SP_AjustarStock @IdVariante = 1, @NuevaCantidad = 17,
+--        @IdUsuario = 1, @Observacion = 'Recuento físico';
+
+CREATE OR ALTER PROCEDURE dbo.SP_AjustarStock
     @IdVariante     INT,
     @NuevaCantidad  INT,
     @IdUsuario      INT,
@@ -10,86 +21,68 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @StockActual INT;
-    DECLARE @Diferencia INT;
+    DECLARE @StockActual  INT;
+    DECLARE @Diferencia   INT;
     DECLARE @IdMovimiento INT;
 
     BEGIN TRY
-        SET XACT_ABORT ON;
 
-        -- 1. VALIDACIONES BÁSICAS Y DE SEGURIDAD LÓGICA
-        IF (@NuevaCantidad < 0)
+        -- 1. VALIDACIONES
+        IF (@NuevaCantidad IS NULL OR @NuevaCantidad < 0)
         BEGIN
             THROW 50020, 'La nueva cantidad de stock no puede ser negativa.', 1;
-        END;
+        END
 
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50021, 'El usuario que realiza el ajuste no existe o está inactivo.', 1;
-        END;
+        END
 
-        -- Defensa en profundidad: aunque seguridad.sql deniega EXECUTE al
-        -- vendedor, el SP vuelve a validar la regla de negocio por sí mismo.
-        IF NOT EXISTS (
-            SELECT 1
-            FROM Usuario u
-            INNER JOIN Rol r ON r.IdRol = u.IdRol
-            WHERE u.IdUsuario = @IdUsuario
-              AND u.Activo = 1
-              AND r.Nombre = 'Administrador'
-        )
+        IF NOT EXISTS (SELECT 1
+                       FROM Usuario u
+                       INNER JOIN Rol r ON r.IdRol = u.IdRol
+                       WHERE u.IdUsuario = @IdUsuario
+                         AND r.Nombre = 'Administrador')
         BEGIN
-            THROW 50023, 'Solo un usuario Administrador activo puede ajustar stock.', 1;
-        END;
+            THROW 50023, 'Solo un usuario Administrador puede ajustar stock.', 1;
+        END
 
-        -- 2. TRANSACCIÓN
-        -- El stock se lee DENTRO de la transacción y bloqueado: si se leyera antes,
-        -- una venta concurrente podría cambiarlo y la diferencia calculada quedaría mal.
-        BEGIN TRANSACTION;
-
-        -- Generar el ID del movimiento. Se bloquea MovimientoStock primero (mismo orden
-        -- que usan los triggers de venta/compra) para no chocar IDs ni generar deadlocks.
-        SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1
-        FROM MovimientoStock WITH (UPDLOCK, HOLDLOCK);
-
-        -- Obtener el stock actual de la variante, bloqueando la fila hasta el COMMIT
         SELECT @StockActual = StockActual
-        FROM VarianteProducto WITH (UPDLOCK, HOLDLOCK)
+        FROM VarianteProducto
         WHERE IdVariante = @IdVariante;
 
-        IF @StockActual IS NULL
+        IF (@StockActual IS NULL)
         BEGIN
             THROW 50022, 'La variante especificada no existe.', 1;
-        END;
+        END
 
-        -- Calcular la diferencia (si da 0, no hay nada que ajustar)
         SET @Diferencia = @NuevaCantidad - @StockActual;
 
-        IF @Diferencia = 0
+        -- Si no hay diferencia no se registra nada
+        IF (@Diferencia = 0)
         BEGIN
-            COMMIT TRANSACTION;
-
-            -- No es un error, pero avisamos que no se hizo nada
-            SELECT @IdVariante AS IdVariante, @StockActual AS StockActual, 'No hubo diferencia. No se registró ajuste.' AS Mensaje;
+            SELECT @IdVariante  AS IdVariante,
+                   @StockActual AS StockActual,
+                   'No hubo diferencia. No se registró ajuste.' AS Mensaje;
             RETURN;
-        END;
+        END
 
-        -- Insertar el movimiento con la diferencia firmada:
-        -- si la diferencia es negativa (faltaba stock), el trigger la resta.
+        -- 2. TRANSACCIÓN
+        BEGIN TRANSACTION;
+
+        SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
+
+        -- Dispara TR_AplicarAjusteStock, que suma la diferencia (con signo)
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
         VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 
-        -- VarianteProducto.StockActual lo actualiza el trigger.
-
         COMMIT TRANSACTION;
 
-        -- 3. MENSAJE DE ÉXITO
-        SELECT
-            @IdVariante AS IdVariante,
-            @StockActual AS StockAnterior,
-            @NuevaCantidad AS StockNuevo,
-            @Diferencia AS Diferencia,
-            'Ajuste de stock registrado correctamente' AS Mensaje;
+        SELECT @IdVariante    AS IdVariante,
+               @StockActual   AS StockAnterior,
+               @NuevaCantidad AS StockNuevo,
+               @Diferencia    AS Diferencia,
+               'Ajuste de stock registrado' AS Mensaje;
 
     END TRY
     BEGIN CATCH
