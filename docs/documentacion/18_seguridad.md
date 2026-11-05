@@ -31,8 +31,9 @@ Solo se usa `GRANT`. Un rol sin `GRANT` sobre un objeto **no tiene acceso**, as�
 |---|---|---|
 | Catálogo (`Producto`, `Categoria`, `Marca`, `Talle`, `Color`, `Segmento`) | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | `SELECT` |
 | `Cliente` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | `SELECT` |
-| `Proveedor`, `Rol`, `Usuario` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Sin acceso |
-| `VarianteProducto` | `SELECT`, `INSERT`, `UPDATE` | `SELECT` |
+| `Proveedor`, `Rol` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Sin acceso |
+| `Usuario` | `SELECT` de todas las columnas **salvo `Contrasena`**; `INSERT`, `UPDATE`, `DELETE` | Sin acceso |
+| `VarianteProducto` | `SELECT`, `INSERT`; `UPDATE` **solo de `PrecioVenta` y `StockMinimo`** | `SELECT` |
 | `Venta`, `DetalleVenta` | `SELECT` | Sin acceso (consulta por la vista) |
 | `Compra`, `DetalleCompra`, `MovimientoStock`, `HistorialPrecio` | `SELECT` | Sin acceso |
 | `AlertaStock` | `SELECT`, `UPDATE` (marcar atendida) | Sin acceso |
@@ -45,7 +46,8 @@ Solo se usa `GRANT`. Un rol sin `GRANT` sobre un objeto **no tiene acceso**, as�
 Puntos importantes:
 
 - **Ventas y compras solo por SP.** Ni el administrador tiene `INSERT`, `UPDATE` o `DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra`: se registran, reciben y anulan con los stored procedures, que validan los datos y dejan el stock consistente.
-- **Usuarios y contraseñas.** El vendedor no tiene acceso a la tabla `Usuario`.
+- **Usuarios y contraseñas.** El vendedor no tiene acceso a la tabla `Usuario`. Al administrador el `SELECT` se le otorga **columna por columna**, sin `Contrasena`: puede gestionar usuarios, pero no leer contraseñas. Además, las contraseñas no se guardan en texto plano sino como hash SHA-256 (`HASHBYTES('SHA2_256', ...)`), así que aunque alguien accediera a la columna no vería la contraseña real.
+- **Stock.** El `UPDATE` sobre `VarianteProducto` se otorga solo para `PrecioVenta` y `StockMinimo`. `StockActual` no se puede modificar directamente ni siquiera como administrador: solo cambia por compras recibidas, ventas, anulaciones y `SP_AjustarStock`, que deja registrado el movimiento.
 - **Información sensible.** El resumen de ventas por usuario (`fn_ResumenVentasPorUsuario`) sirve para evaluar desempeño o calcular comisiones, por eso solo lo ve el administrador.
 
 ## Validación del rol en los SPs
@@ -84,6 +86,10 @@ Con `login_admin_siam` / `Siam_Admin_2026!`:
 USE SIAM;
 
 DELETE FROM dbo.Venta WHERE IdVenta = 1;                                 -- error 229: sin permiso
+SELECT Contrasena FROM dbo.Usuario;                                      -- error 230: sin permiso sobre la columna
+UPDATE dbo.VarianteProducto SET StockActual = 999 WHERE IdVariante = 1;  -- error 230: sin permiso sobre la columna
+UPDATE dbo.VarianteProducto SET PrecioVenta = 19000 WHERE IdVariante = 1; -- funciona
+SELECT IdUsuario, NombreUsuario, Activo FROM dbo.Usuario;                -- funciona
 SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31'); -- funciona
 ```
 
@@ -96,6 +102,6 @@ REVOKE SELECT ON dbo.Cliente FROM rol_vendedor;
 ## Limitaciones
 
 - **Contraseñas de los logins:** están escritas en el script como ejemplo. En un entorno real deben cambiarse y no guardarse en el repositorio.
-- **Contraseñas de la tabla `Usuario`:** el seed las guarda en texto plano porque son datos de prueba. Solo el administrador puede leer esa tabla.
+- **Hash sin "sal":** las contraseñas se guardan como hash SHA-256 simple. Dos usuarios con la misma contraseña tienen el mismo hash; en un sistema real se le agregaría un valor aleatorio por usuario (sal) antes de calcularlo.
 - **Usuario de la operación:** los SPs reciben el `@IdUsuario` como parámetro y no lo relacionan con el login conectado, así que un vendedor podría informar el id de otro vendedor.
-- **Stock por `UPDATE` directo:** el administrador tiene `UPDATE` sobre `VarianteProducto` para cambiar precios y mínimos, y técnicamente también podría cambiar `StockActual`. El procedimiento correcto es `SP_AjustarStock`, que deja registrado el movimiento.
+- **Stock inicial:** el administrador puede dar de alta una variante (`INSERT`) indicando su stock inicial. Una vez creada, el stock ya no se puede modificar directamente.

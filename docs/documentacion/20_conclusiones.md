@@ -26,7 +26,7 @@ Una de las lecciones más importantes fue la diferencia entre avisar un error y 
 - **Identificadores manuales:** las claves de ventas, compras y movimientos se generan con `MAX + 1` dentro de la transacción. Con muchos usuarios operando a la vez, dos operaciones simultáneas podrían calcular el mismo número; convendría usar `IDENTITY`.
 - **Un producto por operación:** cada venta y cada compra registra una sola variante. Una venta de varios productos se registra como varias ventas.
 - **Usuario de la operación:** los SPs reciben el `IdUsuario` como parámetro y validan su rol, pero no lo relacionan con el login conectado. Una mejora sería obtenerlo de la sesión de base de datos, para que no se pueda operar a nombre de otro.
-- **Contraseñas:** el seed las guarda en texto plano porque son datos de prueba. En un sistema real deberían guardarse cifradas.
+- **Contraseñas:** se guardan como hash SHA-256 y ni el administrador puede leer la columna. En un sistema real convendría agregar una sal por usuario antes de calcular el hash.
 - **Anulación de compras:** existe la transición `PENDIENTE → ANULADA`, pero no hay un SP que la encapsule como `SP_AnularVenta` lo hace con las ventas.
 - **Devoluciones parciales:** hoy solo se puede anular una venta completa. Devolver una sola prenda requeriría un nuevo tipo de operación.
 

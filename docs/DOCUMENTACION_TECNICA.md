@@ -27,7 +27,7 @@ Las PK no son `IDENTITY` (salvo `AlertaStock` y `HistorialPrecio`): los IDs se g
 | Tabla | Rol | PK | Relaciones / restricciones |
 |---|---|---|---|
 | `Rol` | Roles de negocio (`Administrador`, `Vendedor`). | `IdRol` | `Nombre` único. |
-| `Usuario` | Usuarios del sistema. | `IdUsuario` | FK `IdRol → Rol`. `NombreUsuario` y `Email` únicos. `Activo IN (0,1)`. Guarda `Contrasena` (VARCHAR 255). |
+| `Usuario` | Usuarios del sistema. | `IdUsuario` | FK `IdRol → Rol`. `NombreUsuario` y `Email` únicos. `Activo IN (0,1)`. Guarda `Contrasena` como hash SHA-256 en hexadecimal (VARCHAR 255). |
 | `Categoria` | Tipo de prenda. | `IdCategoria` | `Nombre` único. |
 | `Marca` | Marca del producto. | `IdMarca` | `Nombre` único. |
 | `Segmento` | Público de la variante (Hombre, Mujer, Niño, Niña, Unisex). | `IdSegmento` | `Nombre` único. |

@@ -19,11 +19,18 @@ INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
 INSERT INTO dbo.Usuario
     (IdUsuario, IdRol, NombreUsuario, Email, Contrasena, Nombre, Apellido, Activo)
 VALUES
-    -- Contraseñas de ejemplo en texto plano (datos de prueba).
-    (1, 1, 'admin',             'admin@siam.local',     'Admin123!',    'Ana',   'Administradora', 1),
-    (2, 2, 'vendedor1',         'vendedor1@siam.local', 'Vendedor123!', 'Bruno', 'Vendedor',       1),
-    (3, 2, 'vendedor2',         'vendedor2@siam.local', 'Vendedor123!', 'Carla', 'Vendedora',      1),
-    (4, 2, 'vendedor_inactivo', 'inactivo@siam.local',  'Inactivo123!', 'Diego', 'Inactivo',       0);
+    -- Las contraseñas no se guardan en texto plano: se guarda su hash
+    -- SHA-256 en hexadecimal (64 caracteres). HASHBYTES calcula el hash y
+    -- CONVERT(..., 2) lo pasa a texto. Para validar un ingreso se calcula
+    -- el hash de lo que escribe el usuario y se compara con el guardado.
+    (1, 1, 'admin',             'admin@siam.local',
+        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin123!'), 2),    'Ana',   'Administradora', 1),
+    (2, 2, 'vendedor1',         'vendedor1@siam.local',
+        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Vendedor123!'), 2), 'Bruno', 'Vendedor',       1),
+    (3, 2, 'vendedor2',         'vendedor2@siam.local',
+        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Vendedor123!'), 2), 'Carla', 'Vendedora',      1),
+    (4, 2, 'vendedor_inactivo', 'inactivo@siam.local',
+        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Inactivo123!'), 2), 'Diego', 'Inactivo',       0);
 
 
 -- 2. CATÁLOGOS
