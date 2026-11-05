@@ -21,7 +21,7 @@ Usa un **Table-Valued Parameter (TVP)** (`TipoDetalleCompra`) para enviar todas 
 6. Cantidad menor o igual a cero: error `50104`.
 7. Costo negativo: error `50105`.
 8. Variante inexistente: error `50106`.
-9. Total calculado como `SUM(Cantidad * CostoUnitario)`; el trigger `TR_DetalleCompra_Control` vuelve a recalcularlo.
+9. Total calculado como `SUM(Cantidad * CostoUnitario)`.
 10. `IdCompra` se genera con `MAX + 1` y `WITH (UPDLOCK, HOLDLOCK)` para evitar duplicados concurrentes.
 11. `BEGIN TRAN` / `COMMIT` / `ROLLBACK` y `SET XACT_ABORT ON`.
 

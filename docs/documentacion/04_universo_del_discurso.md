@@ -70,7 +70,7 @@ Se detallan en la sección [5. Reglas de negocio](05_reglas_de_negocio.md).
 ### Ajuste de inventario
 1. El administrador hace un recuento físico de una variante.
 2. Si no coincide con el sistema, registra la cantidad real y el motivo.
-3. El sistema registra un movimiento de ajuste por la diferencia.
+3. El sistema registra un movimiento de ajuste por la diferencia y actualiza el stock.
 
 ### Reposición
 1. Cuando el stock de una variante llega a su mínimo, el sistema genera una alerta.
@@ -79,9 +79,9 @@ Se detallan en la sección [5. Reglas de negocio](05_reglas_de_negocio.md).
 ## Restricciones del sistema
 
 - El stock de una variante nunca puede ser negativo.
-- El stock solo cambia por movimientos registrados: compras recibidas, ventas, anulaciones y ajustes.
-- Las ventas, compras y movimientos de stock no se borran. Las ventas y compras se anulan, y los movimientos se corrigen con ajustes.
-- Los productos no se borran: se dan de baja (inactivos) y dejan de poder venderse.
+- El stock solo cambia por compras recibidas, ventas, anulaciones y ajustes.
+- Las ventas y compras no se borran: se anulan.
+- Los productos no se borran: se dan de baja (`Activo = 0`).
 - Un usuario dado de baja no puede registrar operaciones.
 - No pueden existir dos variantes con la misma combinación de producto, segmento, talle y color.
 - No se repiten SKU, DNI de cliente, CUIT de proveedor, nombre de usuario ni email de usuario.

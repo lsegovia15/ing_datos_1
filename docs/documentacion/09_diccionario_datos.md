@@ -97,7 +97,7 @@ Combinación concreta de producto, segmento, talle y color que se vende y se sto
 | IdColor | INT | No | | FK → Color; UQ (combinación) | Color |
 | SKU | VARCHAR(30) | No | | UQ | Código único de la variante |
 | PrecioVenta | DECIMAL(12,2) | No | | `>= 0` | Precio de venta actual |
-| StockActual | INT | No | 0 | `>= 0` | Unidades disponibles. Lo mantiene un trigger a partir de los movimientos |
+| StockActual | INT | No | 0 | `>= 0` | Unidades disponibles. Lo mantienen los triggers de venta, anulación, recepción de compra y ajuste |
 | StockMinimo | INT | No | 0 | `>= 0` | Umbral para generar alertas de reposición |
 
 ## Proveedor
@@ -122,7 +122,7 @@ Cabecera de un pedido de mercadería a un proveedor.
 | IdUsuario | INT | No | | FK → Usuario | Usuario que registró la compra |
 | Fecha | DATETIME | No | `GETDATE()` | | Fecha de la compra |
 | NroComprobante | VARCHAR(30) | Sí | | | Número de factura o remito del proveedor |
-| Total | DECIMAL(12,2) | No | 0 | `>= 0` | Suma de las líneas. Lo mantiene un trigger |
+| Total | DECIMAL(12,2) | No | 0 | `>= 0` | Suma de las líneas. Lo calcula `SP_RegistrarCompra` |
 | Estado | VARCHAR(20) | No | `'PENDIENTE'` | `IN ('PENDIENTE', 'RECIBIDA', 'ANULADA')` | Estado del pedido |
 
 ## DetalleCompra
@@ -160,7 +160,7 @@ Cabecera de una venta.
 | IdUsuario | INT | No | | FK → Usuario | Vendedor que registró la venta |
 | Fecha | DATETIME | No | `GETDATE()` | | Fecha y hora de la venta |
 | MedioPago | VARCHAR(20) | No | | `IN ('EFECTIVO', 'DEBITO', 'CREDITO', 'TRANSFERENCIA')` | Forma de pago |
-| Total | DECIMAL(12,2) | No | 0 | `>= 0` | Suma de las líneas menos descuentos. Lo mantiene un trigger |
+| Total | DECIMAL(12,2) | No | 0 | `>= 0` | Suma de las líneas menos descuentos. Lo calculan `SP_RegistrarVenta` y `TR_CalcularTotalVenta` |
 | Estado | VARCHAR(20) | No | `'CONFIRMADA'` | `IN ('CONFIRMADA', 'ANULADA')` | Estado de la venta |
 
 ## DetalleVenta
@@ -188,15 +188,15 @@ Historial de todos los cambios de stock. Es la fuente de verdad del inventario.
 | Fecha | DATETIME | No | `GETDATE()` | | Fecha y hora del movimiento |
 | TipoMovimiento | VARCHAR(20) | No | | `IN ('ENTRADA', 'SALIDA', 'AJUSTE', 'DEVOLUCION')` | Tipo de movimiento |
 | Cantidad | INT | No | | `AJUSTE`: `<> 0`; resto: `> 0` | Unidades. En los ajustes lleva signo (negativo = faltante) |
-| IdCompra | INT | Sí | | FK → Compra | Compra de origen (solo `ENTRADA`) |
-| IdVenta | INT | Sí | | FK → Venta | Venta de origen (`SALIDA` o `DEVOLUCION`) |
+| IdCompra | INT | Sí | | FK → Compra | Compra de origen (`ENTRADA`; hoy no se genera) |
+| IdVenta | INT | Sí | | FK → Venta | Venta de origen (`SALIDA` o `DEVOLUCION`; hoy no se genera) |
 | Observacion | VARCHAR(200) | Sí | | | Detalle o motivo |
 
 Restricción adicional: `CK_Mov_Origen` impide que un movimiento tenga `IdCompra` e `IdVenta` a la vez.
 
 ## HistorialPrecio
 
-Auditoría de cambios de precio. La carga el trigger `TR_Variante_HistorialPrecio`.
+Auditoría de cambios de precio. La carga el trigger `TR_HistorialPrecio`.
 
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|
@@ -205,11 +205,10 @@ Auditoría de cambios de precio. La carga el trigger `TR_Variante_HistorialPreci
 | PrecioAnterior | DECIMAL(12,2) | No | | | Precio antes del cambio |
 | PrecioNuevo | DECIMAL(12,2) | No | | | Precio después del cambio |
 | Fecha | DATETIME | No | `GETDATE()` | | Fecha del cambio |
-| UsuarioBD | VARCHAR(128) | No | `SUSER_SNAME()` | | Login de base de datos que hizo el cambio |
 
 ## AlertaStock
 
-Alertas de reposición. Las carga el trigger `TR_Variante_AlertaStock`.
+Alertas de reposición. Las carga el trigger `TR_AvisoStockMinimo`.
 
 | Columna | Tipo | Nulo | Default | Restricciones | Descripción |
 |---|---|---|---|---|---|

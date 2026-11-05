@@ -2,7 +2,7 @@
 
 Scripts: `sql/sp/SP_RegistrarVenta.sql`, `sql/sp/SP_AnularVenta.sql`, `sql/sp/SP_AjustarStock.sql`, `sql/sp/SP_RegistrarCompra.sql`, `sql/sp/SP_RecibirCompra.sql`, `sql/cursores.sql`
 
-Los stored procedures son la vía para todas las operaciones que mueven stock: ventas, anulaciones, ajustes y compras. Todos siguen la misma estructura:
+Los stored procedures son la vía para las operaciones que mueven stock: ventas, anulaciones, ajustes y compras. Todos siguen la misma estructura:
 
 1. `SET NOCOUNT ON` y `SET XACT_ABORT ON`.
 2. Validaciones de parámetros, de existencia de registros y del rol del usuario, que lanzan `THROW` con un código propio.
@@ -55,8 +55,10 @@ Es defensa en profundidad: aunque por error se le diera permiso de ejecución a 
 1. Calcula el total: `SUM(Cantidad * PrecioUnitario - Descuento)`.
 2. Genera `IdVenta` como `MAX + 1` con `WITH (UPDLOCK, HOLDLOCK)`, para que dos ventas simultáneas no obtengan el mismo número.
 3. Inserta la cabecera en `Venta` con estado `CONFIRMADA`.
-4. Marca la sesión con `sp_set_session_context` (clave `PermitirDetalleVenta`) e inserta las líneas en `DetalleVenta`. El trigger `TR_DetalleVenta_Insert` solo acepta líneas que llegan con esa marca, así que no se pueden cargar ventas por fuera del SP. El trigger genera los movimientos `SALIDA`, que a su vez descuentan el stock.
+4. Marca la sesión con `sp_set_session_context` (clave `PermitirDetalleVenta`) e inserta las líneas en `DetalleVenta`, numeradas con `ROW_NUMBER()`. Los triggers `TR_DescontarStockVenta` (resta el stock) y `TR_CalcularTotalVenta` (recalcula el total) se disparan con ese `INSERT`.
 5. Limpia la marca de la sesión, tanto al terminar como en el `CATCH`.
+
+La marca `PermitirDetalleVenta` no la lee ningún trigger actualmente.
 
 **Resultado:** `IdVentaGenerada`, `TotalVenta`, `Mensaje`.
 
@@ -95,10 +97,10 @@ EXEC SP_RegistrarVenta
 **Procesamiento y modificación de datos:**
 1. Guarda `@IdUsuario` en el contexto de sesión (`sp_set_session_context`, clave `IdUsuarioOperacion`).
 2. Cambia `Venta.Estado` a `ANULADA`.
-3. El trigger `TR_Venta_CambioEstado` inserta un movimiento `DEVOLUCION` por cada línea de la venta, a nombre del usuario leído del contexto de sesión.
+3. El trigger `TR_DevolverStockAnulacion` suma al stock la cantidad de cada línea de la venta.
 4. Limpia el contexto de sesión, tanto en el camino exitoso como en el `CATCH`, porque el contexto de sesión no se revierte con el `ROLLBACK`.
 
-**Por qué el contexto de sesión:** un trigger no recibe parámetros. Sin este mecanismo, la devolución quedaría registrada a nombre del vendedor original y no de quien anuló, y se perdería la trazabilidad.
+La clave `IdUsuarioOperacion` no la lee ningún trigger actualmente. La anulación no genera movimientos en `MovimientoStock`.
 
 **Resultado:** `IdVentaAnulada`, `Mensaje`.
 
@@ -131,7 +133,7 @@ EXEC SP_AnularVenta @IdVenta = 15, @IdUsuario = 1;
 1. Dentro de la transacción, genera `IdMovimiento` y lee `StockActual`, ambos con `WITH (UPDLOCK, HOLDLOCK)`. Leer el stock bloqueado evita que una venta concurrente lo modifique entre la lectura y el ajuste.
 2. Calcula `Diferencia = NuevaCantidad - StockActual`.
 3. Si la diferencia es 0, confirma sin registrar nada e informa que no hubo cambios.
-4. Si no, inserta un movimiento `AJUSTE` con la **diferencia con signo** (negativa si faltaba mercadería). El trigger `TR_MovimientoStock_AplicarStock` la aplica sobre el stock.
+4. Si no, inserta un movimiento `AJUSTE` con la **diferencia con signo** (negativa si faltaba mercadería). El trigger `TR_AplicarAjusteStock` la aplica sobre el stock.
 
 **Resultado:** `IdVariante`, `StockAnterior`, `StockNuevo`, `Diferencia`, `Mensaje`.
 
@@ -172,7 +174,7 @@ EXEC SP_AjustarStock
 1. Calcula el total: `SUM(Cantidad * CostoUnitario)`.
 2. Genera `IdCompra` como `MAX + 1` con `WITH (UPDLOCK, HOLDLOCK)`.
 3. Inserta la cabecera en `Compra` con estado `PENDIENTE`.
-4. Inserta las líneas en `DetalleCompra`, numeradas con `ROW_NUMBER()`. El trigger `TR_DetalleCompra_Control` recalcula el total.
+4. Inserta las líneas en `DetalleCompra`, numeradas con `ROW_NUMBER()`.
 
 El stock **no** cambia en este paso: la mercadería todavía no llegó.
 
@@ -215,8 +217,8 @@ EXEC SP_RegistrarCompra
 1. Lee el estado de la compra con `WITH (UPDLOCK, HOLDLOCK)`, para que dos recepciones simultáneas no ingresen el stock dos veces.
 2. Guarda `@IdUsuario` en el contexto de sesión (clave `IdUsuarioOperacion`).
 3. Cambia `Compra.Estado` a `RECIBIDA`. El `UPDATE` vuelve a exigir `Estado = 'PENDIENTE'`; si no afectó filas, lanza 50112.
-4. El trigger `TR_Compra_CambioEstado` inserta un movimiento `ENTRADA` por cada línea, a nombre de quien recibe.
-5. Limpia el contexto de sesión, también en el `CATCH`.
+4. El trigger `TR_SumarStockCompra` suma al stock la cantidad de cada línea de la compra.
+5. Limpia el contexto de sesión, también en el `CATCH`. La clave `IdUsuarioOperacion` no la lee ningún trigger actualmente.
 
 **Resultado:** `IdCompraRecibida`, `Mensaje`.
 

@@ -9,15 +9,15 @@ El proyecto se ejecuta de punta a punta con `sql/00_master.sql`. El orden no es 
 | Paso | Script | Qué crea / por qué va en ese lugar |
 |---|---|---|
 | 1 | `sql/init_db.sql` | Crea la base `SIAM` y las 16 tablas principales con sus PK, FK y CHECK. |
-| 2 | `sql/siam_triggers.sql` | Crea las 2 tablas auxiliares (`HistorialPrecio`, `AlertaStock`) y todos los triggers. |
+| 2 | `sql/siam_triggers.sql` | Crea las 2 tablas auxiliares (`HistorialPrecio`, `AlertaStock`) y los 8 triggers. |
 | 3 | `sql/funciones.sql` | Crea `fn_EstadoStock` y `fn_ResumenVentasPorUsuario`; dependen de las tablas. |
 | 4 | `sql/vistas.sql` | Crea las 4 vistas de negocio, incluida `vw_CategoriasMasVendidasPorSegmento`. |
 | 5 | `sql/sp/SPs.sql` | Crea los tipos TVP `TipoDetalleVenta` y `TipoDetalleCompra`. Debe ir antes de los SPs. |
-| 6 | `sql/sp/SP_RegistrarVenta.sql` | SP de ventas; usa `TipoDetalleVenta` y el trigger de detalle. |
-| 7 | `sql/sp/SP_AnularVenta.sql` | SP de anulación; valida rol Administrador y usa el trigger de devolución. |
-| 8 | `sql/sp/SP_AjustarStock.sql` | SP de ajustes; inserta movimientos `AJUSTE`. |
+| 6 | `sql/sp/SP_RegistrarVenta.sql` | SP de ventas; usa `TipoDetalleVenta`. Los triggers de `DetalleVenta` descuentan stock y recalculan el total. |
+| 7 | `sql/sp/SP_AnularVenta.sql` | SP de anulación; valida rol Administrador. `TR_DevolverStockAnulacion` devuelve el stock. |
+| 8 | `sql/sp/SP_AjustarStock.sql` | SP de ajustes; inserta movimientos `AJUSTE`, que aplica `TR_AplicarAjusteStock`. |
 | 9 | `sql/sp/SP_RegistrarCompra.sql` | SP de compras; usa `TipoDetalleCompra`. |
-| 10 | `sql/sp/SP_RecibirCompra.sql` | SP de recepción; dispara el trigger de entrada de stock. |
+| 10 | `sql/sp/SP_RecibirCompra.sql` | SP de recepción; `TR_SumarStockCompra` suma el stock. |
 | 11 | `sql/cursores.sql` | Crea `SP_InformeReposicionStock`; usa las tablas y la lógica de stock. |
 | 12 | `sql/seed_data.sql` | Carga roles, usuarios, catálogos, compras, ventas, movimientos y casos borde. Usa los SPs y triggers ya creados. |
 | 13 | `sql/seguridad.sql` | Crea logins, usuarios, roles y permisos del motor. Va al final, cuando ya existen todos los objetos. |
@@ -36,6 +36,7 @@ sqlcmd -S localhost -E -C -b -f 65001 -i 00_master.sql
 - `-b` devuelve código de error si algo falla.
 - `-f 65001` interpreta los archivos como UTF-8 (acentos y ñ).
 - El script requiere permisos de **sysadmin** porque crea la base y los logins.
+- Las rutas de `:r` en `00_master.sql` usan `\\` como separador, por lo que el master está pensado para Windows. En otro sistema hay que correr los scripts uno por uno en el orden de la tabla.
 
 En SSMS: habilitar **SQLCMD Mode**, abrir `sql/00_master.sql` y ejecutar con la carpeta `sql` como directorio de trabajo (o ajustar `:setvar Base` a una ruta absoluta).
 

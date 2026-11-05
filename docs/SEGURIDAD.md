@@ -20,7 +20,7 @@ Las contraseñas del script son de ejemplo y deben cambiarse en un entorno real.
 | `VarianteProducto` | SELECT / INSERT / UPDATE / DELETE | SELECT; `UPDATE`/`INSERT`/`DELETE` denegados |
 | `Venta` / `DetalleVenta` | SELECT / INSERT / UPDATE; `DELETE` denegado | SELECT solo por vistas; DML directo denegado |
 | `Compra` / `DetalleCompra` / `Proveedor` | SELECT / INSERT / UPDATE; `DELETE` denegado | Sin acceso |
-| `MovimientoStock` | SELECT / INSERT; `UPDATE`/`DELETE` bloqueados por `TR_MovimientoStock_Inmutable` | Sin acceso |
+| `MovimientoStock` | SELECT / INSERT / UPDATE / DELETE | Sin acceso |
 | `Usuario` | SELECT de columnas permitidas / INSERT / UPDATE / DELETE; `Contrasena` denegada para lectura | SELECT de columnas permitidas; `Contrasena` denegada |
 | `SP_RegistrarVenta` | EXECUTE | EXECUTE |
 | `SP_AnularVenta` | EXECUTE | DENY EXECUTE |
@@ -38,7 +38,7 @@ Las contraseñas del script son de ejemplo y deben cambiarse en un entorno real.
 - **Stock:** el vendedor no puede hacer `UPDATE` directo sobre `VarianteProducto`; el stock solo cambia por los SPs y triggers.
 - **Borrado:** `DENY DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra` para ambos roles. Las ventas/compras se anulan, no se borran.
 - **Compras:** el vendedor no tiene acceso a compras, proveedores ni movimientos de stock.
-- **Ventas:** el vendedor solo registra ventas mediante `SP_RegistrarVenta`; no inserta cabeceras ni líneas directamente. El trigger `TR_DetalleVenta_Insert` rechaza inserciones directas con el error `51013`.
+- **Ventas:** el vendedor solo registra ventas mediante `SP_RegistrarVenta`; no inserta cabeceras ni líneas directamente.
 - **Anulación:** solo un `Administrador` activo puede anular; el SP valida el rol de aplicación (error `50013`) y el motor deniega `EXECUTE` al rol de vendedor.
 - **Defensa en profundidad:** los SPs administrativos (`SP_AjustarStock`, `SP_RegistrarCompra`, `SP_RecibirCompra`, `SP_AnularVenta`) validan internamente el rol `Administrador` activo. `SP_RegistrarVenta` exige un usuario activo con rol `Administrador` o `Vendedor`. Aunque se concediera `EXECUTE` a otro rol de motor, la regla de negocio seguiría aplicándose.
 
@@ -71,4 +71,4 @@ REVERT;
 
 ## 5. Nota sobre ownership chaining
 
-Los SPs y triggers son propiedad de `dbo`, igual que las tablas. Por eso un vendedor puede ejecutar `SP_RegistrarVenta` y el trigger puede insertar en `MovimientoStock` o actualizar `VarianteProducto` aunque el rol no tenga permisos directos sobre esas tablas. Las pruebas de `EXECUTE AS USER` confirman que la venta funciona y que los accesos directos fallan.
+Los SPs y triggers son propiedad de `dbo`, igual que las tablas. Por eso un vendedor puede ejecutar `SP_RegistrarVenta` y los triggers pueden actualizar `VarianteProducto` aunque el rol no tenga permisos directos sobre esas tablas. Las pruebas de `EXECUTE AS USER` confirman que la venta funciona y que los accesos directos fallan.

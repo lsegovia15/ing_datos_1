@@ -9,19 +9,21 @@ El diagrama usa notación de "pata de gallo" (*crow's foot*). Cada extremo de un
 | `\|{` | Uno o muchos (participación obligatoria) |
 | `o{` | Cero o muchos (participación opcional) |
 
+Existe además una versión en notación de Chen del mismo modelo: [`mermaid-diagram-2026-11-04-210843.svg`](../mermaid-diagram-2026-11-04-210843.svg). Tiene las mismas 18 entidades y 21 relaciones, con los mismos nombres de relación y cardinalidades 1:N, pero no marca claves (PK, UK), la participación opcional ni la exclusión entre `IdCompra` e `IdVenta` en `MovimientoStock` (`CK_Mov_Origen`). Esos tres puntos se leen en este documento.
+
 ```mermaid
 erDiagram
-    ROL ||--o{ USUARIO : "asigna"
+    ROL ||--o{ USUARIO : "pertenece"
     CATEGORIA ||--o{ PRODUCTO : "clasifica"
     MARCA ||--o{ PRODUCTO : "fabrica"
-    PRODUCTO ||--o{ VARIANTE_PRODUCTO : "se ofrece como"
-    SEGMENTO ||--o{ VARIANTE_PRODUCTO : "destina"
-    TALLE ||--o{ VARIANTE_PRODUCTO : "mide"
-    COLOR ||--o{ VARIANTE_PRODUCTO : "colorea"
+    PRODUCTO ||--o{ VARIANTE_PRODUCTO : "se presenta en"
+    SEGMENTO ||--o{ VARIANTE_PRODUCTO : "segmenta"
+    TALLE ||--o{ VARIANTE_PRODUCTO : "tiene talle"
+    COLOR ||--o{ VARIANTE_PRODUCTO : "tiene color"
 
     PROVEEDOR ||--o{ COMPRA : "provee"
-    USUARIO ||--o{ COMPRA : "registra"
-    COMPRA ||--o{ DETALLE_COMPRA : "contiene"
+    USUARIO ||--o{ COMPRA : "gestiona"
+    COMPRA ||--o{ DETALLE_COMPRA : "incluye"
     VARIANTE_PRODUCTO ||--o{ DETALLE_COMPRA : "se compra en"
 
     CLIENTE |o--o{ VENTA : "realiza"
@@ -30,12 +32,12 @@ erDiagram
     VARIANTE_PRODUCTO ||--o{ DETALLE_VENTA : "se vende en"
 
     VARIANTE_PRODUCTO ||--o{ MOVIMIENTO_STOCK : "afecta"
-    USUARIO ||--o{ MOVIMIENTO_STOCK : "registra"
+    USUARIO ||--o{ MOVIMIENTO_STOCK : "ejecuta"
     COMPRA |o--o{ MOVIMIENTO_STOCK : "origina"
-    VENTA |o--o{ MOVIMIENTO_STOCK : "origina"
+    VENTA |o--o{ MOVIMIENTO_STOCK : "genera"
 
-    VARIANTE_PRODUCTO ||--o{ HISTORIAL_PRECIO : "registra cambios"
-    VARIANTE_PRODUCTO ||--o{ ALERTA_STOCK : "genera"
+    VARIANTE_PRODUCTO ||--o{ HISTORIAL_PRECIO : "audita"
+    VARIANTE_PRODUCTO ||--o{ ALERTA_STOCK : "avisa"
 
     ROL {
         int IdRol PK
@@ -161,7 +163,6 @@ erDiagram
         decimal PrecioAnterior
         decimal PrecioNuevo
         datetime Fecha
-        varchar UsuarioBD
     }
     ALERTA_STOCK {
         int IdAlerta PK

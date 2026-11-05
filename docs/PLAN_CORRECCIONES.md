@@ -8,6 +8,8 @@
 **Equipo de trabajo:** Jairo, Martin, Martina y Santi.  
 **Nota:** Lucas no forma parte del reparto de tareas; deja este documento en la rama `lucas` como base para que el equipo ejecute los pendientes.
 
+> **Nota (2026-11-04):** este plan se escribió sobre la versión anterior de `sql/siam_triggers.sql` (13 triggers basados en movimientos de stock). Esa versión se simplificó a 8 triggers. Los ítems A3, A5, A6 y A13 y las referencias a `TR_*_CambioEstado`, `TR_*_UsuarioActivo`, `TR_MovimientoStock_*` y `TR_DetalleVenta_*` ya no se corresponden con el código. El estado vigente está en `documentacion/14_triggers.md`.
+
 ---
 
 ## 1. Estado general

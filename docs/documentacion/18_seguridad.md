@@ -31,7 +31,7 @@ Los roles del motor (`rol_administrador`, `rol_vendedor`) son distintos de la ta
 | `VarianteProducto` | Lectura y escritura | Solo lectura; `INSERT`, `UPDATE` y `DELETE` denegados |
 | `Venta`, `DetalleVenta` | Lectura, `INSERT` y `UPDATE`; `DELETE` denegado | `INSERT`, `UPDATE` y `DELETE` denegados; consulta por vistas |
 | `Compra`, `DetalleCompra`, `Proveedor` | Lectura, `INSERT` y `UPDATE`; `DELETE` denegado en compras | Sin acceso |
-| `MovimientoStock` | Lectura e `INSERT`; `UPDATE` y `DELETE` los bloquea `TR_MovimientoStock_Inmutable` | Sin acceso |
+| `MovimientoStock` | Lectura y escritura | Sin acceso (`DENY`) |
 | `Usuario` | Todas las columnas salvo `Contrasena` | Todas las columnas salvo `Contrasena` |
 | Vistas (las 4) | `SELECT` | `SELECT` |
 | `SP_RegistrarVenta` | `EXECUTE` | `EXECUTE` |
@@ -51,8 +51,8 @@ Los roles del motor (`rol_administrador`, `rol_vendedor`) son distintos de la ta
 
 - **Contraseñas:** `DENY SELECT ON dbo.Usuario (Contrasena)` para ambos roles. Un `SELECT * FROM Usuario` falla con el error 230, así que hay que listar las columnas permitidas. Además, el seed guarda las contraseñas como hash `SHA2_256`, no en texto plano.
 - **Stock:** el vendedor no puede hacer `UPDATE` sobre `VarianteProducto`. El stock solo cambia por los SPs y los triggers.
-- **Ventas:** el vendedor no puede insertar en `Venta` ni en `DetalleVenta`; solo registra ventas con `SP_RegistrarVenta`. Además, `TR_DetalleVenta_Insert` rechaza cualquier línea que no venga del SP (error 51013), aunque quien la inserte tenga permisos.
-- **Borrado:** `DENY DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra` para ambos roles. A esto se suman los triggers `INSTEAD OF DELETE`: las ventas y compras se anulan, no se borran.
+- **Ventas:** el vendedor no puede insertar en `Venta` ni en `DetalleVenta`; solo registra ventas con `SP_RegistrarVenta`.
+- **Borrado:** `DENY DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra` para ambos roles. Además, `TR_NoBorrarVenta` (`INSTEAD OF DELETE`) evita el borrado de ventas: las ventas se anulan, no se borran.
 - **Compras:** el vendedor no ve compras, proveedores ni movimientos de stock.
 - **Información sensible:** el resumen de ventas por usuario (`fn_ResumenVentasPorUsuario`) sirve para evaluar el desempeño o calcular comisiones, por eso solo lo ve el administrador.
 
@@ -64,13 +64,13 @@ Los permisos del motor no son la única barrera. Cada SP valida también el rol 
 |---|---|
 | Permiso del motor | `DENY EXECUTE ON SP_AnularVenta TO rol_vendedor` → error 229 |
 | Validación en el SP | Si el `@IdUsuario` no es `Administrador` activo → error 50013 |
-| Trigger | La devolución de stock solo la genera `TR_Venta_CambioEstado` a partir del cambio de estado |
+| Trigger | La devolución de stock la hace `TR_DevolverStockAnulacion` a partir del cambio de estado |
 
 Si por error se le diera `EXECUTE` a otro rol, la regla de negocio se seguiría cumpliendo.
 
 ## Ownership chaining
 
-Las tablas, los SPs y los triggers pertenecen a `dbo`. Cuando un objeto llama a otro del mismo dueño, SQL Server no vuelve a verificar permisos. Por eso el vendedor puede ejecutar `SP_RegistrarVenta` y el trigger puede insertar en `MovimientoStock` y actualizar `VarianteProducto`, aunque el vendedor tenga esas tablas denegadas. Es lo que permite que **la única forma de operar sea a través de los SPs**.
+Las tablas, los SPs y los triggers pertenecen a `dbo`. Cuando un objeto llama a otro del mismo dueño, SQL Server no vuelve a verificar permisos. Por eso el vendedor puede ejecutar `SP_RegistrarVenta` y los triggers pueden actualizar `VarianteProducto`, aunque el vendedor tenga esas tablas denegadas. Es lo que permite que **la única forma de operar sea a través de los SPs**.
 
 ## Verificación
 

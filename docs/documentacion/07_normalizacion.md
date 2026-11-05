@@ -146,11 +146,11 @@ Hay tres datos que podrían calcularse a partir de otros y que, sin embargo, se 
 
 | Dato | Se podría calcular como | Por qué se guarda | Cómo se evita la inconsistencia |
 |---|---|---|---|
-| `VarianteProducto.StockActual` | Suma de `MovimientoStock` de la variante | Se consulta en cada venta. Recorrer todo el historial cada vez sería costoso | Solo lo modifica el trigger `TR_MovimientoStock_AplicarStock` |
-| `Venta.Total` | Suma de las líneas de `DetalleVenta` | Se lista en informes y búsquedas de ventas | Lo recalcula el trigger `TR_DetalleVenta_Insert`, y las líneas no se pueden editar |
-| `Compra.Total` | Suma de las líneas de `DetalleCompra` | Ídem | Lo recalcula el trigger `TR_DetalleCompra_Control` ante cualquier cambio |
+| `VarianteProducto.StockActual` | Compras recibidas − ventas confirmadas ± ajustes | Se consulta en cada venta. Recalcularlo cada vez sería costoso | Lo modifican los triggers `TR_DescontarStockVenta`, `TR_DevolverStockAnulacion`, `TR_SumarStockCompra` y `TR_AplicarAjusteStock` |
+| `Venta.Total` | Suma de las líneas de `DetalleVenta` | Se lista en informes y búsquedas de ventas | Lo calcula `SP_RegistrarVenta` y lo recalcula el trigger `TR_CalcularTotalVenta` |
+| `Compra.Total` | Suma de las líneas de `DetalleCompra` | Ídem | Lo calcula `SP_RegistrarCompra` al crear la compra |
 
-En los tres casos la redundancia es **controlada**: un trigger mantiene el valor sincronizado y ningún usuario puede modificarlo por otro camino. Se aprovecha la ventaja de rendimiento sin las anomalías de modificación.
+En los tres casos la redundancia es **controlada**: un trigger o un SP mantiene el valor sincronizado y los permisos de `seguridad.sql` restringen la modificación directa. Se aprovecha la ventaja de rendimiento sin las anomalías de modificación.
 
 ## Datos que parecen redundantes pero no lo son
 
@@ -160,7 +160,7 @@ En los tres casos la redundancia es **controlada**: un trigger mantiene el valor
 
 ## Resultado
 
-El modelo final tiene 18 tablas en 5FN, con tres redundancias controladas por triggers. Se eliminaron las anomalías de inserción, modificación y eliminación de la planilla original:
+El modelo final tiene 18 tablas en 5FN, con tres redundancias controladas por triggers y SPs. Se eliminaron las anomalías de inserción, modificación y eliminación de la planilla original:
 
 - Un producto se puede dar de alta sin haberlo vendido.
 - El nombre de una marca se corrige en un solo lugar.

@@ -21,7 +21,7 @@ Permite corregir manualmente el stock de una variante (por ejemplo, por rotura, 
    - Verifica que la variante exista.
    - Calcula la diferencia (`Nueva - Actual`). Si es 0, hace `COMMIT` sin registrar nada y avisa.
    - Inserta un registro en `MovimientoStock` con `TipoMovimiento = 'AJUSTE'` y la **diferencia con signo** (negativa si faltaba stock).
-   - El trigger `TR_MovimientoStock_AplicarStock` aplica la diferencia sobre `StockActual`.
+   - El trigger `TR_AplicarAjusteStock` aplica la diferencia sobre `StockActual`.
    - Hace `COMMIT`.
 3. **Manejo de Errores (`CATCH`):** `ROLLBACK` y `THROW;` para relanzar el error original.
 

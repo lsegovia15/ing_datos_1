@@ -57,12 +57,10 @@ BEGIN
             THROW 50011, 'La venta no se encuentra en un estado que permita anularla.', 1;
         END;
 
-        -- Paso A: Pasar al trigger TR_Venta_CambioEstado quién anula, para que
-        -- registre los movimientos de DEVOLUCION a nombre de este usuario
-        -- (y no del vendedor original de la venta).
+        -- Paso A: guardar quién anula en el contexto de sesión.
         EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
 
-        -- Paso B: Actualizar el estado de la venta (el trigger devuelve el stock).
+        -- Paso B: Actualizar el estado de la venta (TR_DevolverStockAnulacion devuelve el stock).
         -- El WHERE sobre Estado evita que una anulación concurrente vuelva a
         -- ejecutar la devolución si otra sesión ganó la carrera.
         UPDATE Venta
