@@ -1,35 +1,31 @@
 USE SIAM;
 GO
 
-CREATE OR ALTER PROCEDURE SP_AjustarStock
+CREATE PROCEDURE SP_AjustarStock
     @IdVariante     INT,
     @NuevaCantidad  INT,
     @IdUsuario      INT,
     @Observacion    VARCHAR(200) = 'Ajuste manual de inventario'
 AS
 BEGIN
-    SET NOCOUNT ON;
-
     DECLARE @StockActual INT;
     DECLARE @Diferencia INT;
     DECLARE @IdMovimiento INT;
 
     BEGIN TRY
-        SET XACT_ABORT ON;
-
-        -- 1. VALIDACIONES BÁSICAS Y DE SEGURIDAD LÓGICA
+        -- 1. VALIDACIONES 
         IF (@NuevaCantidad < 0)
         BEGIN
-            THROW 50020, 'La nueva cantidad de stock no puede ser negativa.', 1;
-        END;
+            PRINT 'Error: La nueva cantidad de stock no puede ser negativa.';
+            RETURN;
+        END
 
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            THROW 50021, 'El usuario que realiza el ajuste no existe o está inactivo.', 1;
-        END;
+            PRINT 'Error: El usuario que realiza el ajuste no existe o está inactivo.';
+            RETURN;
+        END
 
-        -- Defensa en profundidad: aunque seguridad.sql deniega EXECUTE al
-        -- vendedor, el SP vuelve a validar la regla de negocio por sí mismo.
         IF NOT EXISTS (
             SELECT 1
             FROM Usuario u
@@ -39,51 +35,43 @@ BEGIN
               AND r.Nombre = 'Administrador'
         )
         BEGIN
-            THROW 50023, 'Solo un usuario Administrador activo puede ajustar stock.', 1;
-        END;
+            PRINT 'Error: Solo un usuario Administrador activo puede ajustar stock.';
+            RETURN;
+        END
 
-        -- 2. TRANSACCIÓN
-        -- El stock se lee DENTRO de la transacción y bloqueado: si se leyera antes,
-        -- una venta concurrente podría cambiarlo y la diferencia calculada quedaría mal.
-        BEGIN TRANSACTION;
-
-        -- Generar el ID del movimiento. Se bloquea MovimientoStock primero (mismo orden
-        -- que usan los triggers de venta/compra) para no chocar IDs ni generar deadlocks.
-        SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1
-        FROM MovimientoStock WITH (UPDLOCK, HOLDLOCK);
-
-        -- Obtener el stock actual de la variante, bloqueando la fila hasta el COMMIT
+        -- Verificar existencia de la variante y capturar stock actual
         SELECT @StockActual = StockActual
-        FROM VarianteProducto WITH (UPDLOCK, HOLDLOCK)
+        FROM VarianteProducto
         WHERE IdVariante = @IdVariante;
 
         IF @StockActual IS NULL
         BEGIN
-            THROW 50022, 'La variante especificada no existe.', 1;
-        END;
+            PRINT 'Error: La variante especificada no existe.';
+            RETURN;
+        END
 
-        -- Calcular la diferencia (si da 0, no hay nada que ajustar)
+        -- Calcular diferencia
         SET @Diferencia = @NuevaCantidad - @StockActual;
 
-        IF @Diferencia = 0
+        IF (@Diferencia = 0)
         BEGIN
-            COMMIT TRANSACTION;
-
-            -- No es un error, pero avisamos que no se hizo nada
             SELECT @IdVariante AS IdVariante, @StockActual AS StockActual, 'No hubo diferencia. No se registró ajuste.' AS Mensaje;
             RETURN;
-        END;
+        END
 
-        -- Insertar el movimiento con la diferencia firmada:
-        -- si la diferencia es negativa (faltaba stock), el trigger la resta.
+        -- 2. TRANSACCIÓN ATÓMICA
+        BEGIN TRANSACTION;
+
+        -- Generar ID con MAX e ISNULL
+        SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
+
+        -- Registrar el movimiento de ajuste
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
         VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 
-        -- VarianteProducto.StockActual lo actualiza el trigger.
-
         COMMIT TRANSACTION;
 
-        -- 3. MENSAJE DE ÉXITO
+        -- 3. RESULTADO DE SALIDA
         SELECT
             @IdVariante AS IdVariante,
             @StockActual AS StockAnterior,

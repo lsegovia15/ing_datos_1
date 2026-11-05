@@ -1,24 +1,21 @@
 USE SIAM;
 GO
 
-CREATE OR ALTER PROCEDURE SP_RecibirCompra
+CREATE PROCEDURE SP_RecibirCompra
     @IdCompra  INT,
-    @IdUsuario INT -- Usuario que recibe físicamente la compra
+    @IdUsuario INT
 AS
 BEGIN
-    SET NOCOUNT ON;
-
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
-        SET XACT_ABORT ON;
-
+        -- 1. VALIDACIONES 
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            THROW 50113, 'El usuario que recibe la compra no existe o está inactivo.', 1;
-        END;
+            PRINT 'Error: El usuario que recibe la compra no existe o está inactivo.';
+            RETURN;
+        END
 
-       
         IF NOT EXISTS (
             SELECT 1
             FROM Usuario u
@@ -28,47 +25,40 @@ BEGIN
               AND r.Nombre = 'Administrador'
         )
         BEGIN
-            THROW 50114, 'Solo un usuario Administrador activo puede recibir compras.', 1;
-        END;
+            PRINT 'Error: Solo un usuario Administrador activo puede recibir compras.';
+            RETURN;
+        END
 
-        BEGIN TRANSACTION;
-
-        -- Bloqueo de la compra para que dos recepciones concurrentes no
-        -- ingresen el stock dos veces.
+        -- Verificar existencia de la compra y obtener estado
         SELECT @EstadoActual = Estado
-        FROM Compra WITH (UPDLOCK, HOLDLOCK)
+        FROM Compra
         WHERE IdCompra = @IdCompra;
 
         IF @EstadoActual IS NULL
         BEGIN
-            THROW 50110, 'La compra especificada no existe.', 1;
-        END;
+            PRINT 'Error: La compra especificada no existe.';
+            RETURN;
+        END
 
-        IF @EstadoActual <> 'PENDIENTE'
+        IF (@EstadoActual <> 'PENDIENTE')
         BEGIN
-            THROW 50112, 'Solo una compra en estado PENDIENTE puede recibirse.', 1;
-        END;
+            PRINT 'Error: Solo una compra en estado PENDIENTE puede recibirse.';
+            RETURN;
+        END
 
         IF NOT EXISTS (SELECT 1 FROM DetalleCompra WHERE IdCompra = @IdCompra)
         BEGIN
-            THROW 50111, 'No se puede recibir una compra sin líneas de detalle.', 1;
-        END;
+            PRINT 'Error: No se puede recibir una compra sin líneas de detalle.';
+            RETURN;
+        END
 
-        -- Guarda quién recibe en el contexto de sesión.
-        -- TR_SumarStockCompra suma el stock al pasar a RECIBIDA.
-        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+        -- 2. TRANSACCIÓN ATÓMICA
+        BEGIN TRANSACTION;
 
+        -- Actualización del estado de la compra
         UPDATE Compra
         SET Estado = 'RECIBIDA'
-        WHERE IdCompra = @IdCompra
-          AND Estado = 'PENDIENTE';
-
-        IF @@ROWCOUNT = 0
-        BEGIN
-            THROW 50112, 'La compra cambió de estado y no puede recibirse.', 1;
-        END;
-
-        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
+        WHERE IdCompra = @IdCompra;
 
         COMMIT TRANSACTION;
 
@@ -79,8 +69,6 @@ BEGIN
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-
-        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
         THROW;
     END CATCH
