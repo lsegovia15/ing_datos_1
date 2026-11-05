@@ -189,8 +189,6 @@ GO
 -- 8. Ajustes de stock: aplicar el AJUSTE sobre el stock
 --    SP_AjustarStock inserta el movimiento con la diferencia
 --    (positiva o negativa) y este trigger la aplica.
---    Solo actua sobre AJUSTE: ventas y compras ya actualizan
---    el stock en sus propios triggers.
 
 CREATE TRIGGER TR_AplicarAjusteStock
 ON MovimientoStock
