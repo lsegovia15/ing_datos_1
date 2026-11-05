@@ -20,8 +20,9 @@ Solo se usa `GRANT` (menor privilegio): un rol sin `GRANT` sobre un objeto no ti
 | Objeto / operación | `rol_administrador` | `rol_vendedor` |
 |---|---|---|
 | Catálogo (`Producto`, `Categoria`, `Marca`, `Talle`, `Color`, `Segmento`) y `Cliente` | SELECT / INSERT / UPDATE / DELETE | SELECT |
-| `Proveedor`, `Rol`, `Usuario` | SELECT / INSERT / UPDATE / DELETE | Sin acceso |
-| `VarianteProducto` | SELECT / INSERT / UPDATE | SELECT |
+| `Proveedor`, `Rol` | SELECT / INSERT / UPDATE / DELETE | Sin acceso |
+| `Usuario` | SELECT (todas las columnas salvo `Contrasena`) / INSERT / UPDATE / DELETE | Sin acceso |
+| `VarianteProducto` | SELECT / INSERT / UPDATE (solo `PrecioVenta` y `StockMinimo`) | SELECT |
 | `Venta`, `DetalleVenta`, `Compra`, `DetalleCompra`, `MovimientoStock`, `HistorialPrecio` | SELECT | Sin acceso |
 | `AlertaStock` | SELECT / UPDATE | Sin acceso |
 | Vistas (las 4) | SELECT | SELECT |
