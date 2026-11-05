@@ -24,7 +24,7 @@ Personas del local que operan el sistema.
 | IdRol | INT | No | | FK → Rol | Rol asignado |
 | NombreUsuario | VARCHAR(50) | No | | UQ | Nombre de acceso |
 | Email | VARCHAR(100) | No | | UQ | Correo electrónico |
-| Contrasena | VARCHAR(255) | No | | | Contraseña de acceso (dato sensible) |
+| Contrasena | VARCHAR(255) | No | | | Hash SHA-256 de la contraseña, en hexadecimal (64 caracteres). Dato sensible: ningún rol puede leerlo |
 | Nombre | VARCHAR(50) | No | | | Nombre de la persona |
 | Apellido | VARCHAR(50) | No | | | Apellido de la persona |
 | Activo | INT | No | 1 | `IN (0, 1)` | 1 = activo, 0 = dado de baja |

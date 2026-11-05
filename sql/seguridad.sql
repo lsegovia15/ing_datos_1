@@ -38,7 +38,14 @@ GO
 -- 4. PERMISOS DEL ADMINISTRADOR
 -- Catálogo, maestros y usuarios: puede consultar y mantener.
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Rol       TO rol_administrador;
-GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Usuario   TO rol_administrador;
+
+-- Usuarios: puede darlos de alta, modificarlos y borrarlos, pero la
+-- consulta se otorga columna por columna, sin Contrasena. Así ni el
+-- administrador puede leer las contraseñas (error 230 si lo intenta).
+GRANT SELECT (IdUsuario, IdRol, NombreUsuario, Email, Nombre, Apellido, Activo, FechaAlta)
+    ON dbo.Usuario TO rol_administrador;
+GRANT INSERT, UPDATE, DELETE ON dbo.Usuario TO rol_administrador;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Categoria TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Segmento  TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Marca     TO rol_administrador;
@@ -49,8 +56,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Proveedor TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Cliente   TO rol_administrador;
 
 -- Variantes: alta y cambio de precio/mínimo. Sin DELETE porque están
--- referenciadas por ventas y compras. El stock se cambia con SP_AjustarStock.
-GRANT SELECT, INSERT, UPDATE ON dbo.VarianteProducto TO rol_administrador;
+-- referenciadas por ventas y compras.
+-- El UPDATE se otorga solo sobre PrecioVenta y StockMinimo: StockActual
+-- no se puede modificar directo (error 230). El stock solo cambia por
+-- compras recibidas, ventas, anulaciones y SP_AjustarStock.
+GRANT SELECT, INSERT ON dbo.VarianteProducto TO rol_administrador;
+GRANT UPDATE (PrecioVenta, StockMinimo) ON dbo.VarianteProducto TO rol_administrador;
 
 -- Ventas, compras y movimientos: solo lectura. Se registran, reciben,
 -- anulan y ajustan únicamente a través de los stored procedures.
