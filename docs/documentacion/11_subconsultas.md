@@ -26,12 +26,13 @@ WHERE IdCliente IN (
     INNER JOIN Producto p           ON vp.IdProducto = p.IdProducto
     INNER JOIN Categoria c          ON p.IdCategoria = c.IdCategoria
     WHERE c.Nombre = 'Buzos'
+      AND v.Estado = 'CONFIRMADA'   -- una venta anulada no cuenta como compra
 );
 ```
 
 - **Información que se desea obtener:** los datos de contacto de los clientes que alguna vez compraron un buzo, por ejemplo para avisarles de una nueva colección de invierno.
 - **Función de la subconsulta:** recorre ventas → líneas → variantes → productos → categoría y devuelve la lista de `IdCliente` que compraron buzos.
-- **Por qué es adecuada:** la consulta exterior solo necesita los datos del cliente. Si se hiciera un `JOIN` directo, un cliente que compró tres buzos aparecería tres veces y habría que agregar `DISTINCT`. Con `IN`, cada cliente aparece una sola vez, porque solo se pregunta si pertenece o no al conjunto. Las ventas a consumidor final devuelven `IdCliente = NULL`, que nunca coincide en un `IN`, así que quedan afuera sin un filtro extra.
+- **Por qué es adecuada:** la consulta exterior solo necesita los datos del cliente. Si se hiciera un `JOIN` directo, un cliente que compró tres buzos aparecería tres veces y habría que agregar `DISTINCT`. Con `IN`, cada cliente aparece una sola vez, porque solo se pregunta si pertenece o no al conjunto. Las ventas a consumidor final devuelven `IdCliente = NULL`, que nunca coincide en un `IN`, así que quedan afuera sin un filtro extra. Las ventas anuladas se excluyen con `v.Estado = 'CONFIRMADA'`.
 
 ---
 
@@ -62,12 +63,14 @@ WHERE NOT EXISTS (
     SELECT 1
     FROM VarianteProducto vp
     INNER JOIN DetalleVenta dv ON vp.IdVariante = dv.IdVariante
+    INNER JOIN Venta v ON v.IdVenta = dv.IdVenta
     WHERE vp.IdProducto = p.IdProducto
+      AND v.Estado = 'CONFIRMADA'   -- si solo tuvo ventas anuladas, cuenta como "nunca vendido"
 );
 ```
 
 - **Información que se desea obtener:** los productos sin ninguna venta, candidatos a liquidar o a dar de baja.
-- **Función de la subconsulta:** es **correlacionada**: para cada producto de la consulta exterior (`p.IdProducto`), busca si existe al menos una línea de venta de alguna de sus variantes.
+- **Función de la subconsulta:** es **correlacionada**: para cada producto de la consulta exterior (`p.IdProducto`), busca si existe al menos una línea de venta **confirmada** de alguna de sus variantes. Un producto que solo estuvo en ventas anuladas aparece como no vendido.
 - **Por qué es adecuada:** `NOT EXISTS` se detiene apenas encuentra una fila, sin contar ni traer datos (por eso `SELECT 1`). Además, a diferencia de `NOT IN`, no se ve afectado por valores `NULL` en la subconsulta, que harían que `NOT IN` devuelva un resultado vacío.
 
 > Esta consulta aparece en los dos scripts (`Subconsultas.sql` y `ConsultasAvanzadas.sql` 3.2) con el mismo código.

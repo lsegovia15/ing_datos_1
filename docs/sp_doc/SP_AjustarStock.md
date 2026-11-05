@@ -1,32 +1,20 @@
 ## Procedimiento Almacenado: SP_AjustarStock
 
-**Descripción:** 
-Permite corregir manualmente el stock de una variante (por ejemplo, por rotura, robo o recuento de inventario). Calcula la diferencia entre el stock actual y el nuevo, y registra un movimiento de tipo 'AJUSTE'.
+**Descripción:**
+Corrige el stock de una variante después de un recuento físico. Calcula la diferencia entre lo contado y el stock del sistema y la registra como movimiento `AJUSTE` en `MovimientoStock`. `TR_AplicarAjusteStock` aplica la diferencia a `StockActual`.
 
 **Parámetros:**
-- `@IdVariante` (INT, obligatorio): ID de la variante a ajustar.
-- `@NuevaCantidad` (INT, obligatorio): El stock real (físico) contado.
-- `@IdUsuario` (INT, obligatorio): ID del usuario que autoriza el ajuste.
-- `@Observacion` (VARCHAR(200), opcional): Motivo del ajuste.
+- `@IdVariante` (INT): variante a ajustar.
+- `@NuevaCantidad` (INT): cantidad contada.
+- `@IdUsuario` (INT): usuario que ajusta.
+- `@Observacion` (VARCHAR(200), opcional): motivo.
 
-**Roles:** solo el `Administrador` puede ejecutarlo. El permiso de motor `EXECUTE` se concede a `rol_administrador` y se deniega explícitamente a `rol_vendedor`. Además, el SP valida internamente que el usuario esté activo y tenga rol `Administrador` (error `50023`).
+**Roles:** solo `Administrador` activo.
 
-**Flujo Lógico y Control de Errores:**
-1. **Validaciones (`TRY`):**
-   - Verifica que la nueva cantidad no sea negativa (error `50020`).
-   - Verifica que el usuario exista y esté activo (error `50021`).
-   - Verifica que el usuario tenga rol `Administrador` activo (error `50023`).
-2. **Transacción (`BEGIN TRAN`):**
-   - Genera el `IdMovimiento` y lee el `StockActual` de la variante con `WITH (UPDLOCK, HOLDLOCK)`, para que una venta concurrente no cambie el stock entre la lectura y el ajuste.
-   - Verifica que la variante exista.
-   - Calcula la diferencia (`Nueva - Actual`). Si es 0, hace `COMMIT` sin registrar nada y avisa.
-   - Inserta un registro en `MovimientoStock` con `TipoMovimiento = 'AJUSTE'` y la **diferencia con signo** (negativa si faltaba stock).
-   - El trigger `TR_AplicarAjusteStock` aplica la diferencia sobre `StockActual`.
-   - Hace `COMMIT`.
-3. **Manejo de Errores (`CATCH`):** `ROLLBACK` y `THROW;` para relanzar el error original.
-
-**Pruebas realizadas:**
-- Ajuste de stock de 10 a 7 (faltante de 3). Generó movimiento correcto.
-- Intento de ajuste sin diferencia (mismo valor). No generó movimiento y avisó al usuario.
-- Intento de ajuste a cantidad negativa. Arrojó error controlado.
-- Intento de ajuste por un Vendedor. Arrojó el error `50023` sin registrar movimiento.
+**Control de errores y validaciones:**
+1. Cantidad nueva no negativa (50020).
+2. Usuario existente y activo (50021) con rol `Administrador` (50023).
+3. Variante existente (50022).
+4. Si la diferencia es 0, informa que no hubo cambios y no registra movimiento.
+5. `BEGIN TRANSACTION` / `COMMIT`: `IdMovimiento` con `MAX + 1`.
+6. `TRY...CATCH` con `ROLLBACK` y `THROW;`.

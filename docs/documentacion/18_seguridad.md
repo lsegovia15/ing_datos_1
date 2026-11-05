@@ -6,7 +6,7 @@ La seguridad se aplica en dos niveles que se complementan:
 
 | Nivel | Qué controla | Dónde |
 |---|---|---|
-| Motor (SQL Server) | Quién se conecta y qué objetos puede usar | Logins, usuarios y roles de base de datos, con `GRANT` / `DENY` / `REVOKE` |
+| Motor (SQL Server) | Quién se conecta y qué objetos puede usar | Logins, usuarios y roles de base de datos, con `GRANT` (y `REVOKE` para quitar) |
 | Aplicación | Qué empleado hace cada operación y con qué rol de negocio | Tablas `Rol` y `Usuario`, validadas dentro de los SPs |
 
 Los roles del motor (`rol_administrador`, `rol_vendedor`) son distintos de la tabla `Rol` (`Administrador`, `Vendedor`): los primeros limitan el acceso a los objetos y los segundos identifican al empleado dentro del negocio.
@@ -18,88 +18,84 @@ Los roles del motor (`rol_administrador`, `rol_vendedor`) son distintos de la ta
 | `login_admin_siam` | `usr_admin` | `rol_administrador` | Administrador del local |
 | `login_vendedor_siam` | `usr_vendedor` | `rol_vendedor` | Vendedor |
 
-- Los logins se crean con `CHECK_POLICY = ON`, así que el motor rechaza contraseñas que no cumplan la política de complejidad del servidor.
-- El script es **idempotente**: antes de crear un login, usuario o rol verifica que no exista (`SUSER_ID`, `DATABASE_PRINCIPAL_ID`), y antes de asignar un usuario a un rol consulta `sys.database_role_members`. Se puede ejecutar varias veces sin errores.
-- Los permisos se otorgan a los **roles**, nunca a los usuarios. Para sumar un vendedor nuevo alcanza con crear su usuario y agregarlo a `rol_vendedor`.
+- Los logins son del servidor y no se borran al recrear la base, por eso el script los crea solo si todavía no existen (`IF NOT EXISTS`). Usuarios y roles se crean con la base.
+- Los permisos se otorgan a los **roles**, nunca a los usuarios. Para sumar un vendedor nuevo alcanza con crear su usuario y agregarlo a `rol_vendedor` (`ALTER ROLE ... ADD MEMBER`).
+
+## Criterio: menor privilegio con GRANT
+
+Solo se usa `GRANT`. Un rol sin `GRANT` sobre un objeto **no tiene acceso**, así que cada rol recibe únicamente lo que necesita para su trabajo.
 
 ## Matriz de permisos
 
 | Objeto | `rol_administrador` | `rol_vendedor` |
 |---|---|---|
-| Catálogo (`Producto`, `Categoria`, `Marca`, `Talle`, `Color`, `Segmento`) | Lectura y escritura | Solo lectura |
-| `Cliente` | Lectura y escritura | Solo lectura |
-| `VarianteProducto` | Lectura y escritura | Solo lectura; `INSERT`, `UPDATE` y `DELETE` denegados |
-| `Venta`, `DetalleVenta` | Lectura, `INSERT` y `UPDATE`; `DELETE` denegado | `INSERT`, `UPDATE` y `DELETE` denegados; consulta por vistas |
-| `Compra`, `DetalleCompra`, `Proveedor` | Lectura, `INSERT` y `UPDATE`; `DELETE` denegado en compras | Sin acceso |
-| `MovimientoStock` | Lectura y escritura | Sin acceso (`DENY`) |
-| `Usuario` | Todas las columnas salvo `Contrasena` | Todas las columnas salvo `Contrasena` |
+| Catálogo (`Producto`, `Categoria`, `Marca`, `Talle`, `Color`, `Segmento`) | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | `SELECT` |
+| `Cliente` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | `SELECT` |
+| `Proveedor`, `Rol`, `Usuario` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` | Sin acceso |
+| `VarianteProducto` | `SELECT`, `INSERT`, `UPDATE` | `SELECT` |
+| `Venta`, `DetalleVenta` | `SELECT` | Sin acceso (consulta por la vista) |
+| `Compra`, `DetalleCompra`, `MovimientoStock`, `HistorialPrecio` | `SELECT` | Sin acceso |
+| `AlertaStock` | `SELECT`, `UPDATE` (marcar atendida) | Sin acceso |
 | Vistas (las 4) | `SELECT` | `SELECT` |
-| `SP_RegistrarVenta` | `EXECUTE` | `EXECUTE` |
-| `SP_AnularVenta`, `SP_AjustarStock` | `EXECUTE` | `DENY EXECUTE` |
-| `SP_RegistrarCompra`, `SP_RecibirCompra` | `EXECUTE` | `DENY EXECUTE` |
-| `SP_InformeReposicionStock`, `fn_EstadoStock` | `EXECUTE` | `EXECUTE` |
-| `fn_ResumenVentasPorUsuario` | `SELECT` | `DENY SELECT` |
-| Tipos `TipoDetalleVenta`, `TipoDetalleCompra` | `EXECUTE` | `EXECUTE` solo sobre `TipoDetalleVenta` |
+| `SP_RegistrarVenta`, `SP_InformeReposicionStock` | `EXECUTE` | `EXECUTE` |
+| `SP_AnularVenta`, `SP_AjustarStock`, `SP_RegistrarCompra`, `SP_RecibirCompra` | `EXECUTE` | Sin acceso |
+| `fn_EstadoStock` | `EXECUTE` | `EXECUTE` |
+| `fn_ResumenVentasPorUsuario` | `SELECT` | Sin acceso |
 
-## Uso de GRANT, DENY y REVOKE
+Puntos importantes:
 
-- **`GRANT`** da un permiso. Al administrador se le otorga sobre todo el esquema (`ON SCHEMA::dbo`), así no hay que repetirlo por tabla.
-- **`DENY`** prohíbe un permiso y **gana siempre sobre un `GRANT`**, aunque venga de otro rol. Se usa para las reglas que no tienen excepción: nadie lee contraseñas y nadie borra ventas ni compras, ni siquiera el administrador.
-- **`REVOKE`** quita un permiso otorgado o denegado antes. El script lo usa al principio para limpiar permisos de ejecuciones anteriores antes de aplicar los `DENY`.
+- **Ventas y compras solo por SP.** Ni el administrador tiene `INSERT`, `UPDATE` o `DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra`: se registran, reciben y anulan con los stored procedures, que validan los datos y dejan el stock consistente.
+- **Usuarios y contraseñas.** El vendedor no tiene acceso a la tabla `Usuario`.
+- **Información sensible.** El resumen de ventas por usuario (`fn_ResumenVentasPorUsuario`) sirve para evaluar desempeño o calcular comisiones, por eso solo lo ve el administrador.
 
-## Restricciones principales
-
-- **Contraseñas:** `DENY SELECT ON dbo.Usuario (Contrasena)` para ambos roles. Un `SELECT * FROM Usuario` falla con el error 230, así que hay que listar las columnas permitidas. Además, el seed guarda las contraseñas como hash `SHA2_256`, no en texto plano.
-- **Stock:** el vendedor no puede hacer `UPDATE` sobre `VarianteProducto`. El stock solo cambia por los SPs y los triggers.
-- **Ventas:** el vendedor no puede insertar en `Venta` ni en `DetalleVenta`; solo registra ventas con `SP_RegistrarVenta`.
-- **Borrado:** `DENY DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra` para ambos roles. Además, `TR_NoBorrarVenta` (`INSTEAD OF DELETE`) evita el borrado de ventas: las ventas se anulan, no se borran.
-- **Compras:** el vendedor no ve compras, proveedores ni movimientos de stock.
-- **Información sensible:** el resumen de ventas por usuario (`fn_ResumenVentasPorUsuario`) sirve para evaluar el desempeño o calcular comisiones, por eso solo lo ve el administrador.
-
-## Defensa en profundidad
+## Validación del rol en los SPs
 
 Los permisos del motor no son la única barrera. Cada SP valida también el rol de aplicación del `@IdUsuario` que recibe (ver la [sección 13](13_stored_procedures.md)):
 
 | Barrera | Ejemplo: un vendedor intenta anular una venta |
 |---|---|
-| Permiso del motor | `DENY EXECUTE ON SP_AnularVenta TO rol_vendedor` → error 229 |
+| Permiso del motor | `rol_vendedor` no tiene `EXECUTE` sobre `SP_AnularVenta` → error 229 |
 | Validación en el SP | Si el `@IdUsuario` no es `Administrador` activo → error 50013 |
 | Trigger | La devolución de stock la hace `TR_DevolverStockAnulacion` a partir del cambio de estado |
 
-Si por error se le diera `EXECUTE` a otro rol, la regla de negocio se seguiría cumpliendo.
+## Por qué el vendedor puede vender sin permisos sobre las tablas
 
-## Ownership chaining
-
-Las tablas, los SPs y los triggers pertenecen a `dbo`. Cuando un objeto llama a otro del mismo dueño, SQL Server no vuelve a verificar permisos. Por eso el vendedor puede ejecutar `SP_RegistrarVenta` y los triggers pueden actualizar `VarianteProducto`, aunque el vendedor tenga esas tablas denegadas. Es lo que permite que **la única forma de operar sea a través de los SPs**.
+Las tablas, los SPs y los triggers pertenecen a `dbo`. Cuando el vendedor ejecuta `SP_RegistrarVenta`, el SP puede insertar en `Venta` y `DetalleVenta`, y los triggers pueden actualizar `VarianteProducto`, aunque el vendedor no tenga permisos sobre esas tablas. Es lo que permite que **la única forma de operar sea a través de los SPs**.
 
 ## Verificación
+
+Conectarse en SSMS con **SQL Server Authentication** usando `login_vendedor_siam` / `Siam_Vend_2026!` y ejecutar:
 
 ```sql
 USE SIAM;
 
--- El vendedor no puede leer contraseñas
-EXECUTE AS USER = 'usr_vendedor';
-SELECT * FROM dbo.Usuario;                                               -- error 230
-REVERT;
+SELECT * FROM dbo.Usuario;                                               -- error 229: sin permiso
+UPDATE dbo.VarianteProducto SET StockActual = 999 WHERE IdVariante = 1;  -- error 229: sin permiso
+EXEC dbo.SP_AnularVenta @IdVenta = 1, @IdUsuario = 2;                    -- error 229: sin permiso
 
--- El vendedor no puede modificar el stock directamente
-EXECUTE AS USER = 'usr_vendedor';
-UPDATE dbo.VarianteProducto SET StockActual = 999 WHERE IdVariante = 1;  -- error 229
-REVERT;
+SELECT * FROM dbo.vw_StockVariante;                                      -- funciona
+EXEC dbo.SP_RegistrarVenta @IdUsuario = 2, @MedioPago = 'EFECTIVO',
+     @IdVariante = 1, @Cantidad = 1;                                     -- funciona
+```
 
--- El vendedor no puede anular ventas
-EXECUTE AS USER = 'usr_vendedor';
-EXEC dbo.SP_AnularVenta @IdVenta = 1, @IdUsuario = 2;                    -- error 229
-REVERT;
+Con `login_admin_siam` / `Siam_Admin_2026!`:
 
--- El administrador tampoco puede borrar ventas
-EXECUTE AS USER = 'usr_admin';
-DELETE FROM dbo.Venta WHERE IdVenta = 1;                                 -- error 229
-REVERT;
+```sql
+USE SIAM;
+
+DELETE FROM dbo.Venta WHERE IdVenta = 1;                                 -- error 229: sin permiso
+SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31'); -- funciona
+```
+
+Para quitar un permiso otorgado se usa `REVOKE`, por ejemplo:
+
+```sql
+REVOKE SELECT ON dbo.Cliente FROM rol_vendedor;
 ```
 
 ## Limitaciones
 
 - **Contraseñas de los logins:** están escritas en el script como ejemplo. En un entorno real deben cambiarse y no guardarse en el repositorio.
-- **Hash sin *salt*:** las contraseñas de la tabla `Usuario` se guardan con `SHA2_256` sin *salt*, por lo que dos usuarios con la misma contraseña tienen el mismo hash.
+- **Contraseñas de la tabla `Usuario`:** el seed las guarda en texto plano porque son datos de prueba. Solo el administrador puede leer esa tabla.
 - **Usuario de la operación:** los SPs reciben el `@IdUsuario` como parámetro y no lo relacionan con el login conectado, así que un vendedor podría informar el id de otro vendedor.
+- **Stock por `UPDATE` directo:** el administrador tiene `UPDATE` sobre `VarianteProducto` para cambiar precios y mínimos, y técnicamente también podría cambiar `StockActual`. El procedimiento correcto es `SP_AjustarStock`, que deja registrado el movimiento.

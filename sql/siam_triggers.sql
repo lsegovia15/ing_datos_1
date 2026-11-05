@@ -168,15 +168,19 @@ BEGIN
 
     -- Solo las variantes que recien bajaron al minimo
     -- (antes estaban por encima y ahora quedaron igual o por debajo)
-    INSERT INTO AlertaStock (IdVariante, StockActual, StockMinimo)
-    SELECT i.IdVariante, i.StockActual, i.StockMinimo
-    FROM inserted i
-    JOIN deleted d ON d.IdVariante = i.IdVariante
-    WHERE i.StockActual <= i.StockMinimo
-      AND d.StockActual >  d.StockMinimo;
-
-    IF @@ROWCOUNT > 0
+    IF EXISTS (SELECT 1
+               FROM inserted i
+               JOIN deleted d ON d.IdVariante = i.IdVariante
+               WHERE i.StockActual <= i.StockMinimo
+                 AND d.StockActual >  d.StockMinimo)
     BEGIN
+        INSERT INTO AlertaStock (IdVariante, StockActual, StockMinimo)
+        SELECT i.IdVariante, i.StockActual, i.StockMinimo
+        FROM inserted i
+        JOIN deleted d ON d.IdVariante = i.IdVariante
+        WHERE i.StockActual <= i.StockMinimo
+          AND d.StockActual >  d.StockMinimo;
+
         PRINT 'ATENCION: hay variantes con stock igual o menor al minimo.';
     END
 

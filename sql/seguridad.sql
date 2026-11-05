@@ -1,175 +1,117 @@
+-- SEGURIDAD SIAM
+-- Logins (servidor) -> usuarios (base SIAM) -> roles -> permisos.
+-- Criterio de menor privilegio: cada rol recibe con GRANT solo lo que
+-- necesita. Lo que no se otorga queda sin acceso.
 
--- SIAM - Seguridad de base de datos
-
+-- 1. LOGINS (nivel servidor)
+-- Los logins no se borran al recrear la base, por eso se crean solo si
+-- todavía no existen. Las contraseñas son de ejemplo: cambiarlas en un
+-- entorno real.
 USE master;
 GO
 
--- Logins de servidor. Cambiar las contraseñas en un entorno real.
-IF SUSER_ID(N'login_admin_siam') IS NULL
-BEGIN
-    CREATE LOGIN login_admin_siam
-        WITH PASSWORD = 'Siam_Admin_2026!',
-             CHECK_POLICY = ON,
-             CHECK_EXPIRATION = OFF;
-END;
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'login_admin_siam')
+    CREATE LOGIN login_admin_siam WITH PASSWORD = 'Siam_Admin_2026!';
 GO
 
-IF SUSER_ID(N'login_vendedor_siam') IS NULL
-BEGIN
-    CREATE LOGIN login_vendedor_siam
-        WITH PASSWORD = 'Siam_Vend_2026!',
-             CHECK_POLICY = ON,
-             CHECK_EXPIRATION = OFF;
-END;
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'login_vendedor_siam')
+    CREATE LOGIN login_vendedor_siam WITH PASSWORD = 'Siam_Vend_2026!';
 GO
 
+-- 2. USUARIOS DE LA BASE
 USE SIAM;
 GO
 
-
--- 1. ROLES DE BASE DE DATOS
-
-IF DATABASE_PRINCIPAL_ID(N'rol_administrador') IS NULL
-    CREATE ROLE rol_administrador AUTHORIZATION dbo;
+CREATE USER usr_admin FOR LOGIN login_admin_siam;
+CREATE USER usr_vendedor FOR LOGIN login_vendedor_siam;
 GO
 
-IF DATABASE_PRINCIPAL_ID(N'rol_vendedor') IS NULL
-    CREATE ROLE rol_vendedor AUTHORIZATION dbo;
+-- 3. ROLES Y MIEMBROS
+CREATE ROLE rol_administrador;
+CREATE ROLE rol_vendedor;
 GO
 
-
--- 2. USUARIOS DE BASE DE DATOS
-
-IF DATABASE_PRINCIPAL_ID(N'usr_admin') IS NULL
-    CREATE USER usr_admin FOR LOGIN login_admin_siam;
+ALTER ROLE rol_administrador ADD MEMBER usr_admin;
+ALTER ROLE rol_vendedor ADD MEMBER usr_vendedor;
 GO
-
-IF DATABASE_PRINCIPAL_ID(N'usr_vendedor') IS NULL
-    CREATE USER usr_vendedor FOR LOGIN login_vendedor_siam;
-GO
-
--- Asignación idempotente de usuarios a roles
-IF NOT EXISTS (
-    SELECT 1
-    FROM sys.database_role_members rm
-    INNER JOIN sys.database_principals r ON r.principal_id = rm.role_principal_id
-    INNER JOIN sys.database_principals u ON u.principal_id = rm.member_principal_id
-    WHERE r.name = N'rol_administrador' AND u.name = N'usr_admin'
-)
-    ALTER ROLE rol_administrador ADD MEMBER usr_admin;
-GO
-
-IF NOT EXISTS (
-    SELECT 1
-    FROM sys.database_role_members rm
-    INNER JOIN sys.database_principals r ON r.principal_id = rm.role_principal_id
-    INNER JOIN sys.database_principals u ON u.principal_id = rm.member_principal_id
-    WHERE r.name = N'rol_vendedor' AND u.name = N'usr_vendedor'
-)
-    ALTER ROLE rol_vendedor ADD MEMBER usr_vendedor;
-GO
-
-
--- 3. REVOKE EXPLÍCITOS
--- Se usan para quitar permisos previos antes de aplicar DENY.
-
-REVOKE SELECT ON dbo.Usuario FROM rol_vendedor;
-REVOKE UPDATE ON dbo.VarianteProducto FROM rol_vendedor;
-REVOKE DELETE ON dbo.Venta FROM rol_vendedor;
-REVOKE SELECT ON dbo.Compra FROM rol_vendedor;
-GO
-
 
 -- 4. PERMISOS DEL ADMINISTRADOR
+-- Catálogo, maestros y usuarios: puede consultar y mantener.
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Rol       TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Usuario   TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Categoria TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Segmento  TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Marca     TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Talle     TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Color     TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Producto  TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Proveedor TO rol_administrador;
+GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Cliente   TO rol_administrador;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO rol_administrador;
-GRANT EXECUTE ON SCHEMA::dbo TO rol_administrador;
-GRANT EXECUTE ON TYPE::dbo.TipoDetalleVenta TO rol_administrador;
-GRANT EXECUTE ON TYPE::dbo.TipoDetalleCompra TO rol_administrador;
+-- Variantes: alta y cambio de precio/mínimo. Sin DELETE porque están
+-- referenciadas por ventas y compras. El stock se cambia con SP_AjustarStock.
+GRANT SELECT, INSERT, UPDATE ON dbo.VarianteProducto TO rol_administrador;
 
--- Columnas visibles de Usuario, sin Contrasena.
-GRANT SELECT ON dbo.Usuario
-    (IdUsuario, IdRol, NombreUsuario, Email, Nombre, Apellido, Activo, FechaAlta)
-    TO rol_administrador;
-GRANT SELECT ON dbo.fn_ResumenVentasPorUsuario TO rol_administrador;
+-- Ventas, compras y movimientos: solo lectura. Se registran, reciben,
+-- anulan y ajustan únicamente a través de los stored procedures.
+GRANT SELECT ON dbo.Venta           TO rol_administrador;
+GRANT SELECT ON dbo.DetalleVenta    TO rol_administrador;
+GRANT SELECT ON dbo.Compra          TO rol_administrador;
+GRANT SELECT ON dbo.DetalleCompra   TO rol_administrador;
+GRANT SELECT ON dbo.MovimientoStock TO rol_administrador;
+GRANT SELECT ON dbo.HistorialPrecio TO rol_administrador;
 
--- Bloqueo de lectura directa de la columna de contraseñas.
-DENY SELECT ON dbo.Usuario (Contrasena) TO rol_administrador;
+-- Alertas: puede marcarlas como atendidas.
+GRANT SELECT, UPDATE ON dbo.AlertaStock TO rol_administrador;
 
--- Ventas y compras no se borran: se anulan.
-DENY DELETE ON dbo.Venta TO rol_administrador;
-DENY DELETE ON dbo.DetalleVenta TO rol_administrador;
-DENY DELETE ON dbo.Compra TO rol_administrador;
-DENY DELETE ON dbo.DetalleCompra TO rol_administrador;
+-- Vistas
+GRANT SELECT ON dbo.vw_StockVariante                    TO rol_administrador;
+GRANT SELECT ON dbo.vw_VentasDetalladas                 TO rol_administrador;
+GRANT SELECT ON dbo.vw_ProductosPremium                 TO rol_administrador;
+GRANT SELECT ON dbo.vw_CategoriasMasVendidasPorSegmento TO rol_administrador;
+
+-- Stored procedures
+GRANT EXECUTE ON dbo.SP_RegistrarVenta         TO rol_administrador;
+GRANT EXECUTE ON dbo.SP_AnularVenta            TO rol_administrador;
+GRANT EXECUTE ON dbo.SP_AjustarStock           TO rol_administrador;
+GRANT EXECUTE ON dbo.SP_RegistrarCompra        TO rol_administrador;
+GRANT EXECUTE ON dbo.SP_RecibirCompra          TO rol_administrador;
+GRANT EXECUTE ON dbo.SP_InformeReposicionStock TO rol_administrador;
+
+-- Funciones: la escalar se ejecuta, la de tabla se consulta con SELECT.
+GRANT EXECUTE ON dbo.fn_EstadoStock             TO rol_administrador;
+GRANT SELECT  ON dbo.fn_ResumenVentasPorUsuario TO rol_administrador;
 GO
-
 
 -- 5. PERMISOS DEL VENDEDOR
+-- Solo lectura del catálogo y de clientes.
+GRANT SELECT ON dbo.Producto         TO rol_vendedor;
+GRANT SELECT ON dbo.VarianteProducto TO rol_vendedor;
+GRANT SELECT ON dbo.Categoria        TO rol_vendedor;
+GRANT SELECT ON dbo.Marca            TO rol_vendedor;
+GRANT SELECT ON dbo.Talle            TO rol_vendedor;
+GRANT SELECT ON dbo.Color            TO rol_vendedor;
+GRANT SELECT ON dbo.Segmento         TO rol_vendedor;
+GRANT SELECT ON dbo.Cliente          TO rol_vendedor;
 
--- Consulta de catálogo, stock y vistas de negocio.
-GRANT SELECT ON dbo.vw_StockVariante TO rol_vendedor;
-GRANT SELECT ON dbo.vw_VentasDetalladas TO rol_vendedor;
-GRANT SELECT ON dbo.vw_ProductosPremium TO rol_vendedor;
+-- Vistas de consulta
+GRANT SELECT ON dbo.vw_StockVariante                    TO rol_vendedor;
+GRANT SELECT ON dbo.vw_VentasDetalladas                 TO rol_vendedor;
+GRANT SELECT ON dbo.vw_ProductosPremium                 TO rol_vendedor;
 GRANT SELECT ON dbo.vw_CategoriasMasVendidasPorSegmento TO rol_vendedor;
 
-GRANT SELECT ON dbo.Producto TO rol_vendedor;
-GRANT SELECT ON dbo.VarianteProducto TO rol_vendedor;
-GRANT SELECT ON dbo.Categoria TO rol_vendedor;
-GRANT SELECT ON dbo.Marca TO rol_vendedor;
-GRANT SELECT ON dbo.Talle TO rol_vendedor;
-GRANT SELECT ON dbo.Color TO rol_vendedor;
-GRANT SELECT ON dbo.Segmento TO rol_vendedor;
-GRANT SELECT ON dbo.Cliente TO rol_vendedor;
-
--- Puede ver los datos del usuario, pero no la contraseña.
-GRANT SELECT ON dbo.Usuario
-    (IdUsuario, IdRol, NombreUsuario, Email, Nombre, Apellido, Activo, FechaAlta)
-    TO rol_vendedor;
-
--- Operaciones permitidas: registrar ventas y consultar reposición.
-GRANT EXECUTE ON dbo.SP_RegistrarVenta TO rol_vendedor;
+-- Operaciones: registrar ventas y consultar reposición.
+GRANT EXECUTE ON dbo.SP_RegistrarVenta         TO rol_vendedor;
 GRANT EXECUTE ON dbo.SP_InformeReposicionStock TO rol_vendedor;
-GRANT EXECUTE ON dbo.fn_EstadoStock TO rol_vendedor;
-GRANT EXECUTE ON TYPE::dbo.TipoDetalleVenta TO rol_vendedor;
-
--- Bloqueo de la columna de contraseñas.
-DENY SELECT ON dbo.Usuario (Contrasena) TO rol_vendedor;
-
--- El stock solo se modifica mediante SPs/triggers, no con UPDATE directo.
-DENY UPDATE ON dbo.VarianteProducto TO rol_vendedor;
-DENY INSERT, DELETE ON dbo.VarianteProducto TO rol_vendedor;
-
--- El vendedor no administra catálogo ni clientes.
-DENY INSERT, UPDATE, DELETE ON dbo.Producto TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Categoria TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Marca TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Talle TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Color TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Segmento TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Cliente TO rol_vendedor;
-
--- El vendedor registra ventas solo por SP_RegistrarVenta; no inserta
--- cabeceras ni líneas directamente.
-DENY INSERT, UPDATE, DELETE ON dbo.Venta TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.DetalleVenta TO rol_vendedor;
-
--- Sin acceso a compras, proveedores ni movimientos de stock.
-DENY SELECT ON dbo.Compra TO rol_vendedor;
-DENY SELECT ON dbo.DetalleCompra TO rol_vendedor;
-DENY SELECT ON dbo.Proveedor TO rol_vendedor;
-DENY SELECT ON dbo.MovimientoStock TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Compra TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.DetalleCompra TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.Proveedor TO rol_vendedor;
-DENY INSERT, UPDATE, DELETE ON dbo.MovimientoStock TO rol_vendedor;
-
--- Funciones y SPs restringidos.
-DENY SELECT ON dbo.fn_ResumenVentasPorUsuario TO rol_vendedor;
-DENY EXECUTE ON dbo.SP_AnularVenta TO rol_vendedor;
-DENY EXECUTE ON dbo.SP_AjustarStock TO rol_vendedor;
-DENY EXECUTE ON dbo.SP_RegistrarCompra TO rol_vendedor;
-DENY EXECUTE ON dbo.SP_RecibirCompra TO rol_vendedor;
+GRANT EXECUTE ON dbo.fn_EstadoStock            TO rol_vendedor;
 GO
 
-PRINT 'Seguridad SIAM aplicada: logins, usuarios, roles y permisos.';
+-- Sin GRANT, el vendedor no puede: ver usuarios ni contraseñas, ver
+-- compras, proveedores ni movimientos, modificar tablas, anular ventas,
+-- ajustar stock ni registrar o recibir compras.
+--
+-- Para quitar un permiso otorgado se usa REVOKE. Ejemplo:
+--   REVOKE SELECT ON dbo.Cliente FROM rol_vendedor;
+
+PRINT 'Seguridad SIAM aplicada: logins, usuarios, roles y permisos configurados.';
 GO

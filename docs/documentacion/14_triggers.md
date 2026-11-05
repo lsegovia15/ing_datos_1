@@ -79,7 +79,7 @@ Cada vez que `StockActual` se actualiza, se disparan además `TR_AvisoStockMinim
 
 - **Evento:** `INSTEAD OF DELETE` en `Venta`.
 - **Acción:** no borra nada y lanza el error 50203 ("Las ventas no se pueden borrar. Use SP_AnularVenta para anularla."). Se usa `THROW` y no `PRINT` para que quien ejecutó el `DELETE` se entere de que la operación no se realizó.
-- **Regla:** las ventas se anulan, no se borran. Al ser `INSTEAD OF`, corta el borrado antes de los `ON DELETE CASCADE` hacia `DetalleVenta`. Además, `seguridad.sql` deniega `DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra`.
+- **Regla:** las ventas se anulan, no se borran. Además, ningún rol de `seguridad.sql` tiene permiso de `DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra`.
 
 ## 8. TR_AplicarAjusteStock
 
