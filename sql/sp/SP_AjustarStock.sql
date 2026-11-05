@@ -1,7 +1,7 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_AjustarStock
+CREATE OR ALTER PROCEDURE SP_AjustarStock
     @IdVariante     INT,
     @NuevaCantidad  INT,
     @IdUsuario      INT,
@@ -13,7 +13,7 @@ BEGIN
     DECLARE @IdMovimiento INT;
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
+        -- 1. VALIDACIONES
         IF (@NuevaCantidad < 0)
         BEGIN
             PRINT 'Error: La nueva cantidad de stock no puede ser negativa.';
@@ -22,7 +22,7 @@ BEGIN
 
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario que realiza el ajuste no existe o está inactivo.';
+            PRINT 'Error: El usuario no existe o está inactivo.';
             RETURN;
         END
 
@@ -39,7 +39,6 @@ BEGIN
             RETURN;
         END
 
-        -- Verificar existencia de la variante y capturar stock actual
         SELECT @StockActual = StockActual
         FROM VarianteProducto
         WHERE IdVariante = @IdVariante;
@@ -50,7 +49,6 @@ BEGIN
             RETURN;
         END
 
-        -- Calcular diferencia
         SET @Diferencia = @NuevaCantidad - @StockActual;
 
         IF (@Diferencia = 0)
@@ -62,22 +60,23 @@ BEGIN
         -- 2. TRANSACCIÓN ATÓMICA
         BEGIN TRANSACTION;
 
-        -- Generar ID con MAX e ISNULL
+        -- Guardar datos de sesión para triggers
+        EXEC sys.sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+
         SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
 
-        -- Registrar el movimiento de ajuste
+        -- Inserción del movimiento: TR_AplicarAjusteStock actualiza VarianteProducto.StockActual
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
         VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 
         COMMIT TRANSACTION;
 
-        -- 3. RESULTADO DE SALIDA
         SELECT
             @IdVariante AS IdVariante,
             @StockActual AS StockAnterior,
             @NuevaCantidad AS StockNuevo,
             @Diferencia AS Diferencia,
-            'Ajuste de stock registrado correctamente' AS Mensaje;
+            'Ajuste de stock aplicado exitosamente mediante trigger' AS Mensaje;
 
     END TRY
     BEGIN CATCH

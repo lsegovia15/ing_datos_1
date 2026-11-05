@@ -1,7 +1,7 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_RecibirCompra
+CREATE OR ALTER PROCEDURE SP_RecibirCompra
     @IdCompra  INT,
     @IdUsuario INT
 AS
@@ -9,10 +9,10 @@ BEGIN
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
+        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario que recibe la compra no existe o está inactivo.';
+            PRINT 'Error: El usuario no existe o está inactivo.';
             RETURN;
         END
 
@@ -29,7 +29,6 @@ BEGIN
             RETURN;
         END
 
-        -- Verificar existencia de la compra y obtener estado
         SELECT @EstadoActual = Estado
         FROM Compra
         WHERE IdCompra = @IdCompra;
@@ -55,7 +54,10 @@ BEGIN
         -- 2. TRANSACCIÓN ATÓMICA
         BEGIN TRANSACTION;
 
-        -- Actualización del estado de la compra
+        -- Guardar datos de sesión para triggers
+        EXEC sys.sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+
+        -- Al actualizar a RECIBIDA, el trigger TR_SumarStockCompra ingresa las unidades al inventario
         UPDATE Compra
         SET Estado = 'RECIBIDA'
         WHERE IdCompra = @IdCompra;
@@ -63,7 +65,7 @@ BEGIN
         COMMIT TRANSACTION;
 
         SELECT @IdCompra AS IdCompraRecibida,
-               'Compra recibida y stock actualizado exitosamente' AS Mensaje;
+               'Compra recibida y stock sumado exitosamente por el trigger' AS Mensaje;
 
     END TRY
     BEGIN CATCH

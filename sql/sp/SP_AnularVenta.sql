@@ -1,7 +1,7 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_AnularVenta
+CREATE OR ALTER PROCEDURE SP_AnularVenta
     @IdVenta INT,
     @IdUsuario INT
 AS
@@ -9,10 +9,10 @@ BEGIN
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
-        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario)
+        -- 1. VALIDACIONES
+        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario que anula la venta no existe.';
+            PRINT 'Error: El usuario no existe o está inactivo.';
             RETURN;
         END
 
@@ -29,7 +29,6 @@ BEGIN
             RETURN;
         END
 
-        -- Verificar existencia de la venta y obtener estado actual
         SELECT @EstadoActual = Estado
         FROM Venta
         WHERE IdVenta = @IdVenta;
@@ -48,21 +47,24 @@ BEGIN
 
         IF (@EstadoActual <> 'CONFIRMADA')
         BEGIN
-            PRINT 'Error: La venta no se encuentra en un estado que permita anularla.';
+            PRINT 'Error: Solo se pueden anular ventas en estado CONFIRMADA.';
             RETURN;
         END
 
         -- 2. TRANSACCIÓN ATÓMICA
         BEGIN TRANSACTION;
 
-        -- Actualización del estado
+        -- Datos de sesión para triggers
+        EXEC sys.sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+
+        -- Dispara el trigger TR_DevolverStockAnulacion
         UPDATE Venta
         SET Estado = 'ANULADA'
         WHERE IdVenta = @IdVenta;
 
         COMMIT TRANSACTION;
 
-        SELECT @IdVenta AS IdVentaAnulada, 'Venta anulada y stock devuelto exitosamente' AS Mensaje;
+        SELECT @IdVenta AS IdVentaAnulada, 'Venta anulada y stock devuelto exitosamente por el trigger' AS Mensaje;
 
     END TRY
     BEGIN CATCH
