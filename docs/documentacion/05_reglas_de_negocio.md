@@ -10,7 +10,7 @@ Cada regla indica con qué mecanismo de la base de datos se implementa. El detal
 | RN-02 | El stock se controla por variante: la combinación de producto, segmento, talle y color. No pueden existir dos variantes con la misma combinación. | `UQ_Variante_Combinacion` |
 | RN-03 | Cada variante tiene un código SKU único. | `UQ_Variante_SKU` |
 | RN-04 | Los precios (base y de venta) no pueden ser negativos. | `CK_Producto_Precio`, `CK_Variante_Precio` |
-| RN-05 | Los productos no se eliminan: se dan de baja (`Activo = 0`). | `CK_Producto_Activo` |
+| RN-05 | Los productos se dan de baja (`Activo = 0`) en lugar de borrarse. Un producto con variantes no se puede borrar. | `CK_Producto_Activo`, `FK_Variante_Producto` |
 | RN-06 | Todo cambio de precio de venta queda registrado con el precio anterior, el nuevo y la fecha. | `TR_HistorialPrecio` |
 | RN-07 | No se repiten nombres de categoría, marca, segmento, talle ni color. | `UNIQUE` en cada tabla |
 
