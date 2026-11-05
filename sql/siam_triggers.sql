@@ -98,7 +98,21 @@ GO
 
 
 
--- 5. Aviso de stock bajo el minimo
+-- 5. Alerta de stock bajo el minimo
+
+CREATE TABLE AlertaStock (
+    IdAlerta        INT      IDENTITY(1,1) NOT NULL,
+    IdVariante      INT      NOT NULL,
+    StockActual     INT      NOT NULL,
+    StockMinimo     INT      NOT NULL,
+    Fecha           DATETIME NOT NULL DEFAULT GETDATE(),
+    Atendida        INT      NOT NULL DEFAULT 0,
+    CONSTRAINT PK_AlertaStock PRIMARY KEY (IdAlerta),
+    CONSTRAINT FK_Alerta_Variante FOREIGN KEY (IdVariante)
+        REFERENCES VarianteProducto (IdVariante),
+    CONSTRAINT CK_AlertaStock_Atendida CHECK (Atendida IN (0, 1))
+);
+GO
 
 CREATE TRIGGER TR_AvisoStockMinimo
 ON VarianteProducto
@@ -106,9 +120,16 @@ AFTER UPDATE
 AS
 BEGIN
 
-    IF EXISTS (SELECT 1
-               FROM inserted
-               WHERE StockActual <= StockMinimo)
+    -- Solo las variantes que recien bajaron al minimo
+    -- (antes estaban por encima y ahora quedaron igual o por debajo)
+    INSERT INTO AlertaStock (IdVariante, StockActual, StockMinimo)
+    SELECT i.IdVariante, i.StockActual, i.StockMinimo
+    FROM inserted i
+    JOIN deleted d ON d.IdVariante = i.IdVariante
+    WHERE i.StockActual <= i.StockMinimo
+      AND d.StockActual >  d.StockMinimo;
+
+    IF @@ROWCOUNT > 0
     BEGIN
         PRINT 'ATENCION: hay variantes con stock igual o menor al minimo.';
     END
@@ -159,6 +180,29 @@ AS
 BEGIN
 
     PRINT 'Las ventas no se pueden borrar. Cambie el Estado a ANULADA.';
+
+END;
+GO
+
+
+
+-- 8. Ajustes de stock: aplicar el AJUSTE sobre el stock
+--    SP_AjustarStock inserta el movimiento con la diferencia
+--    (positiva o negativa) y este trigger la aplica.
+--    Solo actua sobre AJUSTE: ventas y compras ya actualizan
+--    el stock en sus propios triggers.
+
+CREATE TRIGGER TR_AplicarAjusteStock
+ON MovimientoStock
+AFTER INSERT
+AS
+BEGIN
+
+    UPDATE v
+    SET v.StockActual = v.StockActual + i.Cantidad
+    FROM VarianteProducto v
+    JOIN inserted i ON i.IdVariante = v.IdVariante
+    WHERE i.TipoMovimiento = 'AJUSTE';
 
 END;
 GO

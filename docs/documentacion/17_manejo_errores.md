@@ -5,7 +5,7 @@ El manejo de errores se reparte en tres niveles. Cada nivel atrapa lo que el ant
 | Nivel | Mecanismo | Qué controla |
 |---|---|---|
 | 1. Estructura | Restricciones `PK`, `FK`, `UNIQUE`, `CHECK`, `NOT NULL` | Datos inválidos en cualquier `INSERT`/`UPDATE`, venga de donde venga |
-| 2. Reglas de negocio | Triggers con `THROW` | Reglas que involucran varias tablas o el estado anterior de un registro |
+| 2. Reglas de negocio | Triggers | Mantener stock y totales sincronizados; `TR_DescontarStockVenta` corta la venta si no hay stock |
 | 3. Operaciones | Stored procedures con `TRY...CATCH` y transacciones | Parámetros incorrectos, registros inexistentes y mensajes claros para el usuario |
 
 ## Patrón usado en los stored procedures
@@ -38,7 +38,7 @@ END CATCH
 
 ## Errores dentro de transacciones
 
-Los triggers corren dentro de la transacción de la sentencia que los dispara. Si un trigger lanza `THROW`, se revierte **todo**: la venta, su detalle y los movimientos ya generados. Ejemplo: si al registrar una venta la segunda línea no tiene stock, no queda registrada ni la cabecera ni la primera línea.
+Los triggers corren dentro de la transacción de la sentencia que los dispara. Si un trigger lanza `THROW` (hoy solo `TR_DescontarStockVenta`), se revierte **todo**: la cabecera de la venta y sus líneas. Ejemplo: si al registrar una venta la segunda línea no tiene stock, no queda registrada ni la cabecera ni la primera línea.
 
 ## Concurrencia
 
@@ -47,14 +47,12 @@ Dos usuarios operando al mismo tiempo pueden generar errores aunque cada operaci
 | Riesgo | Prevención |
 |---|---|
 | Dos ventas obtienen el mismo `IdVenta` | `MAX(IdVenta) + 1` leído con `WITH (UPDLOCK, HOLDLOCK)` dentro de la transacción |
-| Dos movimientos obtienen el mismo `IdMovimiento` | Igual, en `SP_AjustarStock` y en los triggers que insertan movimientos |
-| Vender la última unidad dos veces | El trigger `TR_MovimientoStock_AplicarStock` valida dentro de la transacción, y el `CHECK (StockActual >= 0)` es la última barrera |
+| Dos movimientos obtienen el mismo `IdMovimiento` | Igual, en `SP_AjustarStock` |
+| Vender la última unidad dos veces | `TR_DescontarStockVenta` valida dentro de la transacción, y el `CHECK (StockActual >= 0)` es la última barrera |
 | Un ajuste calculado sobre un stock que cambió | `SP_AjustarStock` lee el stock bloqueado dentro de la transacción |
 | Dos compras obtienen el mismo `IdCompra` | `SP_RegistrarCompra` usa `MAX + 1` con `WITH (UPDLOCK, HOLDLOCK)` |
 | Anular una venta o recibir una compra dos veces a la vez | El SP lee el estado con bloqueo y el `UPDATE` vuelve a exigir el estado anterior (`CONFIRMADA` o `PENDIENTE`); si no afecta filas, lanza 50011 o 50112 |
-| Deadlocks | Todos los caminos bloquean en el mismo orden: `Venta` → `MovimientoStock` → `VarianteProducto` |
 
-Se verificó con cuatro sesiones simultáneas registrando ventas, anulaciones y ajustes sobre las mismas variantes: no hubo errores ni deadlocks, y el stock final coincidió con la suma de los movimientos.
 
 ## Situaciones de error contempladas
 
@@ -68,12 +66,10 @@ Se verificó con cuatro sesiones simultáneas registrando ventas, anulaciones y 
 | Parámetros incorrectos | Venta o compra vacía, variante repetida, cantidad o costo inválido | SP | 50001, 50004, 50100, 50103, 50104, 50105 |
 | Permisos insuficientes | Un vendedor intenta anular, ajustar stock o registrar o recibir compras | SP | 50007, 50013, 50023, 50107, 50114 |
 | Permisos insuficientes | Acceso directo a tablas o SPs no permitidos para el rol del motor | `DENY` | 229, 230 (motor) |
-| Operaciones no permitidas | Anular una venta ya anulada, reactivar una anulada | SP / trigger | 50011, 51020 |
-| Operaciones no permitidas | Insertar líneas de venta sin pasar por el SP, o agregarlas a una venta ya cargada | Trigger | 51013, 51014 |
-| Operaciones no permitidas | Editar o borrar movimientos, ventas, líneas de venta o compras | Trigger | 51003, 51012, 51050, 51051 |
-| Operaciones no permitidas | Vender sin stock, vender un producto inactivo | SP / trigger | 50006, 51002, 51011 |
-| Operaciones no permitidas | Operar con un usuario inactivo | Trigger | 51004, 51005 |
-| Operaciones no permitidas | Modificar una compra ya recibida o recibirla vacía | SP / trigger | 50111, 50112, 51030, 51031, 51040 |
+| Operaciones no permitidas | Anular una venta ya anulada | SP | 50011 |
+| Operaciones no permitidas | Vender sin stock | SP / trigger | 50006, 50001 (trigger) |
+| Operaciones no permitidas | Recibir una compra vacía o que no está pendiente | SP | 50111, 50112 |
+| Operaciones no permitidas | Borrar una venta | Trigger `INSTEAD OF` (sin error, no borra) y `DENY DELETE` (229) | — |
 | Errores durante transacciones | Falla a mitad de una venta | `XACT_ABORT` + `ROLLBACK` | — |
 
 ## Catálogo de códigos propios
@@ -84,7 +80,6 @@ Los rangos están separados para identificar de inmediato el origen del error:
 |---|---|
 | 50001 – 50099 | Stored procedures de ventas y stock |
 | 50100 – 50199 | Stored procedures de compras |
-| 51001 – 51099 | Triggers |
 
 | Código | Origen | Mensaje |
 |---|---|---|
@@ -116,21 +111,8 @@ Los rangos están separados para identificar de inmediato el origen del error:
 | 50112 | `SP_RecibirCompra` | Solo una compra en estado PENDIENTE puede recibirse. |
 | 50113 | `SP_RecibirCompra` | El usuario que recibe la compra no existe o está inactivo. |
 | 50114 | `SP_RecibirCompra` | Solo un usuario Administrador activo puede recibir compras. |
-| 51002 | `TR_MovimientoStock_AplicarStock` | Stock insuficiente para registrar el movimiento. |
-| 51003 | `TR_MovimientoStock_Inmutable` | Los movimientos de stock no se modifican: registre un AJUSTE. |
-| 51004 | `TR_Venta_UsuarioActivo` | Un usuario inactivo no puede registrar ventas. |
-| 51005 | `TR_Compra_UsuarioActivo` | Un usuario inactivo no puede registrar compras. |
-| 51010 | `TR_DetalleVenta_Insert` | Solo se agregan lineas a una venta CONFIRMADA. |
-| 51011 | `TR_DetalleVenta_Insert` | No se puede vender una variante de un producto inactivo. |
-| 51012 | `TR_DetalleVenta_Inmutable` | Las lineas de venta no se modifican ni borran: anule la venta. |
-| 51013 | `TR_DetalleVenta_Insert` | Inserción directa de líneas no permitida: use SP_RegistrarVenta. |
-| 51014 | `TR_DetalleVenta_Insert` | No se pueden agregar líneas a una venta ya procesada. |
-| 51020 | `TR_Venta_CambioEstado` | Una venta anulada no puede volver a confirmarse. |
-| 51030 | `TR_Compra_CambioEstado` | Solo una compra PENDIENTE puede cambiar de estado. |
-| 51031 | `TR_Compra_CambioEstado` | No se puede recibir una compra sin lineas. |
-| 51040 | `TR_DetalleCompra_Control` | Solo se modifican lineas de una compra PENDIENTE. |
-| 51050 | `TR_Venta_NoBorrar` | Las ventas no se borran: cambie Estado a ANULADA. |
-| 51051 | `TR_Compra_NoBorrar` | Las compras no se borran: cambie Estado a ANULADA. |
+
+El único trigger que lanza un error propio es `TR_DescontarStockVenta`: usa el 50001 con el mensaje "No hay stock suficiente para realizar la venta.". El mismo número lo usa `SP_RegistrarVenta` para "El detalle de la venta está vacío.", así que conviene mirar el mensaje para distinguirlos.
 
 ## Ejemplo: capturar un error desde quien llama
 

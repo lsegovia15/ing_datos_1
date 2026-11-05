@@ -23,7 +23,7 @@ Una base de datos centralizada que registra productos, variantes, stock, compras
 El sistema gestiona:
 
 - **Catálogo:** productos, categorías, marcas, talles, colores, segmentos de público y variantes.
-- **Stock:** cantidad disponible por variante, con el historial completo de movimientos.
+- **Stock:** cantidad disponible por variante, con el registro de los ajustes manuales en `MovimientoStock`.
 - **Compras:** pedidos a proveedores y su recepción.
 - **Ventas:** registro y anulación de ventas, con su detalle.
 - **Clientes y proveedores.**

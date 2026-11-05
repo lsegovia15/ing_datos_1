@@ -1,7 +1,7 @@
 ## Procedimiento Almacenado: SP_RecibirCompra
 
 **Descripción:**
-Cambia una compra de `PENDIENTE` a `RECIBIDA`. El trigger `TR_Compra_CambioEstado` inserta los movimientos de `ENTRADA` y actualiza el stock de cada variante.
+Cambia una compra de `PENDIENTE` a `RECIBIDA`. El trigger `TR_SumarStockCompra` suma al stock la cantidad de cada línea.
 
 **Parámetros:**
 - `@IdCompra` (INT, obligatorio): compra a recibir.
@@ -14,10 +14,10 @@ Cambia una compra de `PENDIENTE` a `RECIBIDA`. El trigger `TR_Compra_CambioEstad
 4. Compra inexistente: error `50110`.
 5. Compra que no está `PENDIENTE`: error `50112`.
 6. Compra sin líneas de detalle: error `50111`.
-7. Guarda `@IdUsuario` en `SESSION_CONTEXT(N'IdUsuarioOperacion')` para que el trigger registre la `ENTRADA` a nombre de quien recibe.
+7. Guarda `@IdUsuario` en `SESSION_CONTEXT(N'IdUsuarioOperacion')` (ningún trigger lo lee actualmente).
 8. Actualiza `Compra.Estado = 'RECIBIDA'` solo si sigue `PENDIENTE`; si otra sesión ganó la carrera, error `50112`.
 9. Limpia el session context, hace `COMMIT` y devuelve `IdCompraRecibida` con un mensaje.
 
 **Roles:** solo un usuario activo con rol de aplicación `Administrador` puede ejecutarlo. El SP valida esta regla internamente (error `50114`); además, el permiso de motor se concede a `rol_administrador` y se deniega a `rol_vendedor`.
 
-**Trigger asociado:** `TR_Compra_CambioEstado` valida la transición, exige líneas de detalle e ingresa el stock.
+**Trigger asociado:** `TR_SumarStockCompra` ingresa el stock cuando la compra pasa de `PENDIENTE` a `RECIBIDA`. Las validaciones (estado y líneas de detalle) las hace el SP.

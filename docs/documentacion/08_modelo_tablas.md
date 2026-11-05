@@ -20,7 +20,7 @@ Scripts: `sql/init_db.sql` (tablas, restricciones e índices) y `sql/siam_trigge
 | Tabla | Clave primaria | Generación |
 |---|---|---|
 | Rol, Usuario, Categoria, Marca, Segmento, Talle, Color, Producto, VarianteProducto, Proveedor, Cliente | `Id<Tabla>` | Manual, al cargar el dato |
-| Compra, Venta, MovimientoStock | `Id<Tabla>` | `MAX + 1` con bloqueo, dentro de los SPs y triggers |
+| Compra, Venta, MovimientoStock | `Id<Tabla>` | `MAX + 1` con bloqueo, dentro de los SPs |
 | DetalleVenta | `(IdVenta, NroLinea)` | `NroLinea` con `ROW_NUMBER()` dentro de `SP_RegistrarVenta` |
 | DetalleCompra | `(IdCompra, NroLinea)` | Manual, al cargar cada línea de la compra |
 | HistorialPrecio, AlertaStock | `IdHistorial`, `IdAlerta` | `IDENTITY(1,1)` |
@@ -56,7 +56,7 @@ Scripts: `sql/init_db.sql` (tablas, restricciones e índices) y `sql/siam_trigge
 - **`CASCADE`** del detalle hacia su cabecera, porque una línea no existe sin su compra o venta.
 - **`SET NULL`** donde la referencia es opcional (el cliente de una venta, el origen de un movimiento).
 
-En la práctica, ventas y compras nunca se borran: los triggers `TR_Venta_NoBorrar` y `TR_Compra_NoBorrar` (`INSTEAD OF DELETE`) cortan el borrado antes de que se apliquen los `CASCADE` y `SET NULL`. Las acciones referenciales quedan como red de seguridad del modelo.
+En la práctica, ventas y compras nunca se borran: el trigger `TR_NoBorrarVenta` (`INSTEAD OF DELETE`) corta el borrado de ventas antes de que se aplique el `CASCADE`, y `seguridad.sql` deniega `DELETE` sobre ventas y compras. Las acciones referenciales quedan como red de seguridad del modelo.
 
 ## Restricciones de integridad (unicidad)
 
@@ -111,7 +111,6 @@ En la práctica, ventas y compras nunca se borran: los triggers `TR_Venta_NoBorr
 | Compra.Total, Venta.Total, DetalleVenta.Descuento, AlertaStock.Atendida | `0` |
 | Compra.Estado | `'PENDIENTE'` |
 | Venta.Estado | `'CONFIRMADA'` |
-| HistorialPrecio.UsuarioBD | `SUSER_SNAME()` |
 
 ## Índices
 
