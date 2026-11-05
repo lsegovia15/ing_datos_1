@@ -10,6 +10,10 @@
    - Ventas: 6 (1, 2, 4 y 5 CONFIRMADAS; 3 y 6 ANULADAS).
    - Compras: 4 (1 RECIBIDA, 2 PENDIENTE, 3 y 4 ANULADAS).
    - 1 movimiento de stock (ajuste) y 1 alerta (variante 10).
+
+   La sección 10 (seguridad) entra como usr_admin y usr_vendedor con
+   EXECUTE AS USER, así que hay que ejecutar el script como sysadmin
+   (por ejemplo, con el usuario sa o con autenticación de Windows).
 */
 
 USE SIAM;
@@ -26,6 +30,7 @@ DECLARE @s      INT;
 DECLARE @t      DECIMAL(12,2);
 DECLARE @t2     DECIMAL(12,2);
 DECLARE @txt    VARCHAR(20);
+DECLARE @clave  VARCHAR(64);
 
 
 PRINT '=== 1. ESTADO DESPUÉS DEL SEED ===';
@@ -476,7 +481,152 @@ END CATCH;
 
 
 PRINT '';
-PRINT '=== 10. INTEGRIDAD ===';
+PRINT '=== 10. SEGURIDAD ===';
+
+-- Contraseñas guardadas como hash SHA-256 (64 caracteres hexadecimales)
+SET @Caso = 'Contraseñas guardadas como hash SHA-256, no en texto plano';
+SELECT @n = COUNT(*) FROM Usuario WHERE LEN(Contrasena) <> 64;
+SELECT @s = COUNT(*) FROM Usuario
+WHERE IdUsuario = 1
+  AND Contrasena = CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin123!'), 2);
+IF @n = 0 AND @s = 1 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+-- Cada prueba entra como el usuario del rol con EXECUTE AS USER y vuelve
+-- con REVERT. El REVERT va fuera del TRY para que se ejecute siempre.
+
+-- ADMINISTRADOR
+SET @Caso = 'Administrador no puede leer Usuario.Contrasena -> 230';
+SET @e = 0;
+EXECUTE AS USER = 'usr_admin';
+BEGIN TRY
+    SELECT TOP 1 @clave = Contrasena FROM dbo.Usuario;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @e = 230 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Administrador puede leer el resto de las columnas de Usuario';
+SET @e = 0;
+EXECUTE AS USER = 'usr_admin';
+BEGIN TRY
+    SELECT @n = COUNT(IdUsuario) FROM dbo.Usuario WHERE Activo = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @e = 0 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Administrador no puede modificar StockActual directo -> 230';
+SET @e = 0;
+BEGIN TRANSACTION;
+EXECUTE AS USER = 'usr_admin';
+BEGIN TRY
+    UPDATE dbo.VarianteProducto SET StockActual = 999 WHERE IdVariante = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e = 230 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Administrador puede cambiar el precio de una variante';
+SET @e = 0;
+BEGIN TRANSACTION;
+EXECUTE AS USER = 'usr_admin';
+BEGIN TRY
+    UPDATE dbo.VarianteProducto SET PrecioVenta = 19000 WHERE IdVariante = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e = 0 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Administrador no puede borrar ventas directo -> 229';
+SET @e = 0;
+EXECUTE AS USER = 'usr_admin';
+BEGIN TRY
+    DELETE FROM dbo.Venta WHERE IdVenta = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e = 229 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+-- VENDEDOR
+SET @Caso = 'Vendedor no puede leer la tabla Usuario -> 229';
+SET @e = 0;
+EXECUTE AS USER = 'usr_vendedor';
+BEGIN TRY
+    SELECT @n = COUNT(*) FROM dbo.Usuario;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @e = 229 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Vendedor no puede modificar el stock -> 229';
+SET @e = 0;
+EXECUTE AS USER = 'usr_vendedor';
+BEGIN TRY
+    UPDATE dbo.VarianteProducto SET StockActual = 999 WHERE IdVariante = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e = 229 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Vendedor no puede ejecutar SP_AnularVenta -> 229';
+SET @e = 0;
+EXECUTE AS USER = 'usr_vendedor';
+BEGIN TRY
+    EXEC dbo.SP_AnularVenta @IdVenta = 1, @IdUsuario = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e = 229 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+SET @Caso = 'Vendedor puede vender con SP_RegistrarVenta y descuenta stock';
+SET @e = 0;
+BEGIN TRANSACTION;
+EXECUTE AS USER = 'usr_vendedor';
+BEGIN TRY
+    EXEC dbo.SP_RegistrarVenta @IdUsuario = 2, @MedioPago = 'EFECTIVO', @IdVariante = 1, @Cantidad = 1;
+END TRY
+BEGIN CATCH
+    SET @e = ERROR_NUMBER();
+END CATCH;
+REVERT;
+SELECT @s = StockActual FROM VarianteProducto WHERE IdVariante = 1;   -- 22 - 1 = 21
+IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+IF @e = 0 AND @s = 21 PRINT 'OK    - ' + @Caso;
+ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
+
+
+PRINT '';
+PRINT '=== 11. INTEGRIDAD ===';
 
 SET @Caso = 'El total de cada venta coincide con su detalle';
 SELECT @n = COUNT(*)
