@@ -1,9 +1,19 @@
-CREATE DATABASE SIAM ;--Sistema Integrado Administracion Multiple
+
+IF DB_ID('SIAM') IS NOT NULL
+BEGIN
+    ALTER DATABASE SIAM SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE SIAM;
+END
 GO
 
-USE SIAM
+CREATE DATABASE SIAM;
 GO
-;
+
+USE SIAM;
+GO
+
+
+-- TABLAS
 
 CREATE TABLE Rol (
     IdRol           INT          NOT NULL,
@@ -12,7 +22,7 @@ CREATE TABLE Rol (
     CONSTRAINT PK_Rol PRIMARY KEY (IdRol),
     CONSTRAINT UQ_Rol_Nombre UNIQUE (Nombre)
 );
- 
+
 CREATE TABLE Usuario (
     IdUsuario       INT          NOT NULL,
     IdRol           INT          NOT NULL,
@@ -28,7 +38,7 @@ CREATE TABLE Usuario (
     CONSTRAINT UQ_Usuario_Email UNIQUE (Email),
     CONSTRAINT CK_Usuario_Activo CHECK (Activo IN (0, 1))
 );
- 
+
 CREATE TABLE Categoria (
     IdCategoria     INT          NOT NULL,
     Nombre          VARCHAR(50)  NOT NULL,
@@ -36,52 +46,53 @@ CREATE TABLE Categoria (
     CONSTRAINT PK_Categoria PRIMARY KEY (IdCategoria),
     CONSTRAINT UQ_Categoria_Nombre UNIQUE (Nombre)
 );
- 
-CREATE TABLE CategoriaSegmento (
-    IdCategoriaSegmento INT         NOT NULL,
-    IdCategoria         INT         NOT NULL,
-    Nombre              VARCHAR(50) NOT NULL,
-    CONSTRAINT PK_CategoriaSegmento PRIMARY KEY (IdCategoriaSegmento),
-    CONSTRAINT UQ_CategoriaSegmento UNIQUE (IdCategoria, Nombre)
+
+-- Segmento: público al que va dirigida una variante (Hombre, Mujer, Niño, Niña, Unisex)
+CREATE TABLE Segmento (
+    IdSegmento      INT         NOT NULL,
+    Nombre          VARCHAR(50) NOT NULL,
+    CONSTRAINT PK_Segmento PRIMARY KEY (IdSegmento),
+    CONSTRAINT UQ_Segmento_Nombre UNIQUE (Nombre)
 );
- 
+
 CREATE TABLE Marca (
     IdMarca         INT         NOT NULL,
     Nombre          VARCHAR(50) NOT NULL,
     CONSTRAINT PK_Marca PRIMARY KEY (IdMarca),
     CONSTRAINT UQ_Marca_Nombre UNIQUE (Nombre)
 );
- 
+
 CREATE TABLE Talle (
     IdTalle         INT         NOT NULL,
     Descripcion     VARCHAR(10) NOT NULL,
     CONSTRAINT PK_Talle PRIMARY KEY (IdTalle),
     CONSTRAINT UQ_Talle_Descripcion UNIQUE (Descripcion)
 );
- 
+
 CREATE TABLE Color (
     IdColor         INT         NOT NULL,
     Nombre          VARCHAR(30) NOT NULL,
     CONSTRAINT PK_Color PRIMARY KEY (IdColor),
     CONSTRAINT UQ_Color_Nombre UNIQUE (Nombre)
 );
- 
+
 CREATE TABLE Producto (
-    IdProducto          INT           NOT NULL,
-    IdCategoriaSegmento INT           NOT NULL,
-    IdMarca             INT           NOT NULL,
-    Nombre              VARCHAR(100)  NOT NULL,
-    Descripcion         VARCHAR(500)  NULL,
-    PrecioBase          DECIMAL(12,2) NOT NULL,
-    Activo              INT           NOT NULL DEFAULT 1,
+    IdProducto      INT           NOT NULL,
+    IdCategoria     INT           NOT NULL,
+    IdMarca         INT           NOT NULL,
+    Nombre          VARCHAR(100)  NOT NULL,
+    Descripcion     VARCHAR(500)  NULL,
+    PrecioBase      DECIMAL(12,2) NOT NULL,
+    Activo          INT           NOT NULL DEFAULT 1,
     CONSTRAINT PK_Producto PRIMARY KEY (IdProducto),
     CONSTRAINT CK_Producto_Precio CHECK (PrecioBase >= 0),
     CONSTRAINT CK_Producto_Activo CHECK (Activo IN (0, 1))
 );
- 
+
 CREATE TABLE VarianteProducto (
     IdVariante      INT           NOT NULL,
     IdProducto      INT           NOT NULL,
+    IdSegmento      INT           NOT NULL,
     IdTalle         INT           NOT NULL,
     IdColor         INT           NOT NULL,
     SKU             VARCHAR(30)   NOT NULL,
@@ -90,11 +101,11 @@ CREATE TABLE VarianteProducto (
     StockMinimo     INT           NOT NULL DEFAULT 0,
     CONSTRAINT PK_VarianteProducto PRIMARY KEY (IdVariante),
     CONSTRAINT UQ_Variante_SKU UNIQUE (SKU),
-    CONSTRAINT UQ_Variante_Combinacion UNIQUE (IdProducto, IdTalle, IdColor),
+    CONSTRAINT UQ_Variante_Combinacion UNIQUE (IdProducto, IdSegmento, IdTalle, IdColor),
     CONSTRAINT CK_Variante_Precio CHECK (PrecioVenta >= 0),
     CONSTRAINT CK_Variante_Stock CHECK (StockActual >= 0 AND StockMinimo >= 0)
 );
- 
+
 CREATE TABLE Proveedor (
     IdProveedor     INT          NOT NULL,
     RazonSocial     VARCHAR(100) NOT NULL,
@@ -105,7 +116,7 @@ CREATE TABLE Proveedor (
     CONSTRAINT PK_Proveedor PRIMARY KEY (IdProveedor),
     CONSTRAINT UQ_Proveedor_CUIT UNIQUE (CUIT)
 );
- 
+
 CREATE TABLE Compra (
     IdCompra        INT           NOT NULL,
     IdProveedor     INT           NOT NULL,
@@ -118,7 +129,7 @@ CREATE TABLE Compra (
     CONSTRAINT CK_Compra_Total CHECK (Total >= 0),
     CONSTRAINT CK_Compra_Estado CHECK (Estado IN ('PENDIENTE', 'RECIBIDA', 'ANULADA'))
 );
- 
+
 CREATE TABLE DetalleCompra (
     IdCompra        INT           NOT NULL,
     NroLinea        INT           NOT NULL,
@@ -130,7 +141,7 @@ CREATE TABLE DetalleCompra (
     CONSTRAINT CK_DetalleCompra_Cantidad CHECK (Cantidad > 0),
     CONSTRAINT CK_DetalleCompra_Costo CHECK (CostoUnitario >= 0)
 );
- 
+
 CREATE TABLE Cliente (
     IdCliente       INT          NOT NULL,
     Nombre          VARCHAR(50)  NOT NULL,
@@ -142,7 +153,7 @@ CREATE TABLE Cliente (
     CONSTRAINT PK_Cliente PRIMARY KEY (IdCliente),
     CONSTRAINT UQ_Cliente_DNI UNIQUE (DNI)
 );
- 
+
 CREATE TABLE Venta (
     IdVenta         INT           NOT NULL,
     IdCliente       INT           NULL,
@@ -170,7 +181,7 @@ CREATE TABLE DetalleVenta (
     CONSTRAINT CK_DetalleVenta_Precio CHECK (PrecioUnitario >= 0),
     CONSTRAINT CK_DetalleVenta_Descuento CHECK (Descuento >= 0 AND Descuento <= Cantidad * PrecioUnitario)
 );
- 
+
 CREATE TABLE MovimientoStock (
     IdMovimiento    INT          NOT NULL,
     IdVariante      INT          NOT NULL,
@@ -183,21 +194,24 @@ CREATE TABLE MovimientoStock (
     Observacion     VARCHAR(200) NULL,
     CONSTRAINT PK_MovimientoStock PRIMARY KEY (IdMovimiento),
     CONSTRAINT CK_Mov_Tipo CHECK (TipoMovimiento IN ('ENTRADA', 'SALIDA', 'AJUSTE', 'DEVOLUCION')),
-    CONSTRAINT CK_Mov_Cantidad CHECK (Cantidad > 0),
-    CONSTRAINT CK_Mov_Origen CHECK (IdCompra IS NULL OR IdVenta IS NULL)
+    CONSTRAINT CK_Mov_Cantidad CHECK (
+        (TipoMovimiento =  'AJUSTE' AND Cantidad <> 0)
+     OR (TipoMovimiento <> 'AJUSTE' AND Cantidad >  0)
+    ),
+    CONSTRAINT CK_Mov_Origen CHECK (NOT (IdCompra IS NOT NULL AND IdVenta IS NOT NULL))
 );
 GO
- 
+
+
+-- FOREIGN KEYS
+
+
 ALTER TABLE Usuario ADD CONSTRAINT FK_Usuario_Rol
     FOREIGN KEY (IdRol) REFERENCES Rol (IdRol)
     ON DELETE NO ACTION;
 
-ALTER TABLE CategoriaSegmento ADD CONSTRAINT FK_CategoriaSegmento_Categoria
+ALTER TABLE Producto ADD CONSTRAINT FK_Producto_Categoria
     FOREIGN KEY (IdCategoria) REFERENCES Categoria (IdCategoria)
-    ON DELETE NO ACTION;
-
-ALTER TABLE Producto ADD CONSTRAINT FK_Producto_CategoriaSegmento
-    FOREIGN KEY (IdCategoriaSegmento) REFERENCES CategoriaSegmento (IdCategoriaSegmento)
     ON DELETE NO ACTION;
 
 ALTER TABLE Producto ADD CONSTRAINT FK_Producto_Marca
@@ -206,6 +220,10 @@ ALTER TABLE Producto ADD CONSTRAINT FK_Producto_Marca
 
 ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Producto
     FOREIGN KEY (IdProducto) REFERENCES Producto (IdProducto)
+    ON DELETE NO ACTION;
+
+ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Segmento
+    FOREIGN KEY (IdSegmento) REFERENCES Segmento (IdSegmento)
     ON DELETE NO ACTION;
 
 ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Talle
@@ -265,9 +283,12 @@ ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Venta
     ON DELETE SET NULL;
 GO
 
+-- ÍNDICES
+
 CREATE INDEX IX_Usuario_IdRol                 ON Usuario (IdRol);
-CREATE INDEX IX_Producto_IdCategoriaSegmento  ON Producto (IdCategoriaSegmento);
+CREATE INDEX IX_Producto_IdCategoria          ON Producto (IdCategoria);
 CREATE INDEX IX_Producto_IdMarca              ON Producto (IdMarca);
+CREATE INDEX IX_Variante_IdSegmento           ON VarianteProducto (IdSegmento);
 CREATE INDEX IX_Variante_IdTalle              ON VarianteProducto (IdTalle);
 CREATE INDEX IX_Variante_IdColor              ON VarianteProducto (IdColor);
 CREATE INDEX IX_Compra_IdProveedor            ON Compra (IdProveedor);

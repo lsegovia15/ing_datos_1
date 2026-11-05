@@ -1,0 +1,28 @@
+## Procedimiento Almacenado: SP_AnularVenta
+
+**Descripción:** 
+Anula una venta previamente registrada. Cambia el estado de la cabecera a 'ANULADA'; el trigger `TR_DevolverStockAnulacion` suma al stock la cantidad de cada línea para que el inventario vuelva a su estado anterior.
+
+**Regla de negocio:** solo un usuario activo con rol de aplicación `Administrador` puede anular ventas. Un `Vendedor` puede registrar ventas, pero no anularlas (error 50013). Además, el permiso de motor `EXECUTE` se concede únicamente a `rol_administrador`.
+
+**Parámetros:**
+- `@IdVenta` (INT, obligatorio): ID de la venta a anular.
+- `@IdUsuario` (INT, obligatorio): ID del usuario que autoriza la anulación (para auditoría).
+
+**Flujo Lógico y Control de Errores:**
+1. **Validaciones (`TRY`):**
+   - Verifica que el usuario que anula exista en el sistema.
+   - Verifica que el usuario esté activo y que su `Rol.Nombre` sea `Administrador` (error 50013 si no).
+   - Dentro de la transacción, lee la venta con `WITH (UPDLOCK, HOLDLOCK)`.
+   - Verifica que la venta exista y que no esté ya 'ANULADA' (evita anulaciones duplicadas).
+2. **Transacción (`BEGIN TRAN`):**
+   - Guarda `@IdUsuario` en el session context (`IdUsuarioOperacion`). Ningún trigger lo lee actualmente.
+   - Actualiza el campo `Estado` de la tabla `Venta` a 'ANULADA' solo si sigue en 'CONFIRMADA'; si otra sesión ganó la carrera, lanza error 50011.
+   - El trigger `TR_DevolverStockAnulacion` suma al stock la cantidad de cada línea. No se generan movimientos en `MovimientoStock`.
+   - Limpia el session context y hace `COMMIT`.
+3. **Manejo de Errores (`CATCH`):**
+   - Si algo falla, ejecuta `ROLLBACK TRANSACTION`, limpia el session context y relanza el error con `THROW;`.
+
+**Pruebas realizadas:**
+- Anulación exitosa de la Venta #1. El stock de cada variante volvió a su valor anterior (Variante 1: +2, Variante 2: +1).
+- Intento de anulación duplicada: el SP aborta correctamente y no devuelve stock por segunda vez.

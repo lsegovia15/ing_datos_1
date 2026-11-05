@@ -1,11 +1,8 @@
 USE SIAM;
 GO
 
-/*
-    Funcion: fn_EstadoStock
-    Objetivo: informar el estado del stock de una variante de producto.
-    Ejemplo de uso: SELECT dbo.fn_EstadoStock(1) AS EstadoStock;
-*/
+ --   Objetivo: informar el estado del stock de una variante de producto.
+ --   Ejemplo de uso: SELECT dbo.fn_EstadoStock(1) AS EstadoStock;
 
 CREATE OR ALTER FUNCTION dbo.fn_EstadoStock
 (
@@ -35,13 +32,11 @@ BEGIN
 END;
 GO
 
-/*
-    Funcion: fn_ResumenVentasPorUsuario
-    Objetivo: obtener la cantidad de ventas y el total vendido por usuario
-              dentro de un periodo.
-    Ejemplo de uso:
-    SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31');
-*/
+
+ --Objetivo: obtener la cantidad de ventas y el total vendido por usuario
+ --dentro de un periodo.
+ --Ejemplo de uso: SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31');
+
 
 CREATE OR ALTER FUNCTION dbo.fn_ResumenVentasPorUsuario
 (
