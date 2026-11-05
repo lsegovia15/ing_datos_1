@@ -20,9 +20,9 @@ Scripts: `sql/init_db.sql` (tablas, restricciones e índices) y `sql/siam_trigge
 | Tabla | Clave primaria | Generación |
 |---|---|---|
 | Rol, Usuario, Categoria, Marca, Segmento, Talle, Color, Producto, VarianteProducto, Proveedor, Cliente | `Id<Tabla>` | Manual, al cargar el dato |
-| Compra, Venta, MovimientoStock | `Id<Tabla>` | `MAX + 1` con bloqueo, dentro de los SPs |
-| DetalleVenta | `(IdVenta, NroLinea)` | `NroLinea` con `ROW_NUMBER()` dentro de `SP_RegistrarVenta` |
-| DetalleCompra | `(IdCompra, NroLinea)` | Manual, al cargar cada línea de la compra |
+| Compra, Venta, MovimientoStock | `Id<Tabla>` | `MAX + 1` dentro de la transacción de los SPs |
+| DetalleVenta | `(IdVenta, NroLinea)` | `SP_RegistrarVenta` graba la línea 1 (una venta = un producto) |
+| DetalleCompra | `(IdCompra, NroLinea)` | `SP_RegistrarCompra` graba la línea 1 (una compra = un producto) |
 | HistorialPrecio, AlertaStock | `IdHistorial`, `IdAlerta` | `IDENTITY(1,1)` |
 
 ## Claves foráneas y relaciones
@@ -38,25 +38,22 @@ Scripts: `sql/init_db.sql` (tablas, restricciones e índices) y `sql/siam_trigge
 | `FK_Variante_Color` | VarianteProducto.IdColor | Color | `NO ACTION` |
 | `FK_Compra_Proveedor` | Compra.IdProveedor | Proveedor | `NO ACTION` |
 | `FK_Compra_Usuario` | Compra.IdUsuario | Usuario | `NO ACTION` |
-| `FK_DetalleCompra_Compra` | DetalleCompra.IdCompra | Compra | `CASCADE` |
+| `FK_DetalleCompra_Compra` | DetalleCompra.IdCompra | Compra | `NO ACTION` |
 | `FK_DetalleCompra_Variante` | DetalleCompra.IdVariante | VarianteProducto | `NO ACTION` |
-| `FK_Venta_Cliente` | Venta.IdCliente | Cliente | `SET NULL` |
+| `FK_Venta_Cliente` | Venta.IdCliente | Cliente | `NO ACTION` |
 | `FK_Venta_Usuario` | Venta.IdUsuario | Usuario | `NO ACTION` |
-| `FK_DetalleVenta_Venta` | DetalleVenta.IdVenta | Venta | `CASCADE` |
+| `FK_DetalleVenta_Venta` | DetalleVenta.IdVenta | Venta | `NO ACTION` |
 | `FK_DetalleVenta_Variante` | DetalleVenta.IdVariante | VarianteProducto | `NO ACTION` |
 | `FK_Mov_Variante` | MovimientoStock.IdVariante | VarianteProducto | `NO ACTION` |
 | `FK_Mov_Usuario` | MovimientoStock.IdUsuario | Usuario | `NO ACTION` |
-| `FK_Mov_Compra` | MovimientoStock.IdCompra | Compra | `SET NULL` |
-| `FK_Mov_Venta` | MovimientoStock.IdVenta | Venta | `SET NULL` |
+| `FK_Mov_Compra` | MovimientoStock.IdCompra | Compra | `NO ACTION` |
+| `FK_Mov_Venta` | MovimientoStock.IdVenta | Venta | `NO ACTION` |
 | `FK_Historial_Variante` | HistorialPrecio.IdVariante | VarianteProducto | `NO ACTION` |
 | `FK_Alerta_Variante` | AlertaStock.IdVariante | VarianteProducto | `NO ACTION` |
 
-**Criterio:**
-- **`NO ACTION`** en casi todas las FK: no se puede borrar un dato que está en uso. Por ejemplo, no se puede borrar una categoría que tiene productos.
-- **`CASCADE`** del detalle hacia su cabecera, porque una línea no existe sin su compra o venta.
-- **`SET NULL`** donde la referencia es opcional (el cliente de una venta, el origen de un movimiento).
+**Criterio:** todas las FK usan el comportamiento por defecto (`NO ACTION`): no se puede borrar un dato que está en uso. Por ejemplo, no se puede borrar una categoría que tiene productos, ni un cliente que tiene ventas.
 
-En la práctica, ventas y compras nunca se borran: el trigger `TR_NoBorrarVenta` (`INSTEAD OF DELETE`) corta el borrado de ventas antes de que se aplique el `CASCADE`, y `seguridad.sql` deniega `DELETE` sobre ventas y compras. Las acciones referenciales quedan como red de seguridad del modelo.
+Además, ventas y compras nunca se borran: el trigger `TR_NoBorrarVenta` (`INSTEAD OF DELETE`) impide borrar ventas, y ningún rol tiene permiso de `DELETE` sobre ventas y compras.
 
 ## Restricciones de integridad (unicidad)
 

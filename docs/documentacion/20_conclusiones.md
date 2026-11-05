@@ -19,13 +19,14 @@ En la práctica, el sistema no puede quedar en un estado inconsistente aunque se
 
 ## Sobre el manejo de errores y la concurrencia
 
-Una de las lecciones más importantes fue que una operación correcta para un solo usuario puede fallar con varios usuarios a la vez. Las pruebas con sesiones simultáneas mostraron que generar IDs con `MAX + 1` sin bloqueo producía claves duplicadas. Se resolvió con bloqueos explícitos (`UPDLOCK, HOLDLOCK`) y un orden de bloqueo uniforme para evitar deadlocks. También se separaron los códigos de error por stored procedure, para identificar de inmediato el origen de cada falla.
+Una de las lecciones más importantes fue la diferencia entre avisar un error y lanzarlo. Con `PRINT` el procedimiento termina como si hubiera salido bien y quien lo llamó no se entera; con `THROW` el error llega al `CATCH` de quien llama y la transacción se revierte completa. También se separaron los códigos de error por stored procedure y por trigger, para identificar de inmediato el origen de cada falla. Y en los triggers se aprendió a no asumir que se ejecutan fila por fila: una sola sentencia puede afectar varias filas a la vez.
 
 ## Limitaciones y trabajo futuro
 
-- **Identificadores manuales:** las claves de ventas, compras y movimientos se generan con `MAX + 1` bloqueado. Funciona correctamente, pero serializa las operaciones. Con mucho volumen convendría usar `IDENTITY` o `SEQUENCE`.
+- **Identificadores manuales:** las claves de ventas, compras y movimientos se generan con `MAX + 1` dentro de la transacción. Con muchos usuarios operando a la vez, dos operaciones simultáneas podrían calcular el mismo número; convendría usar `IDENTITY`.
+- **Un producto por operación:** cada venta y cada compra registra una sola variante. Una venta de varios productos se registra como varias ventas.
 - **Usuario de la operación:** los SPs reciben el `IdUsuario` como parámetro y validan su rol, pero no lo relacionan con el login conectado. Una mejora sería obtenerlo de la sesión de base de datos, para que no se pueda operar a nombre de otro.
-- **Contraseñas:** se guardan como hash `SHA2_256`, pero sin *salt*. Agregarlo evitaría que dos contraseñas iguales tengan el mismo hash.
+- **Contraseñas:** se guardan como hash SHA-256 y ni el administrador puede leer la columna. En un sistema real convendría agregar una sal por usuario antes de calcular el hash.
 - **Anulación de compras:** existe la transición `PENDIENTE → ANULADA`, pero no hay un SP que la encapsule como `SP_AnularVenta` lo hace con las ventas.
 - **Devoluciones parciales:** hoy solo se puede anular una venta completa. Devolver una sola prenda requeriría un nuevo tipo de operación.
 

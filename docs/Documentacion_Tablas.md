@@ -351,7 +351,7 @@ El modelo está implementado en los scripts SQL del repositorio:
 - `sql/siam_triggers.sql`: triggers y 2 tablas auxiliares (`HistorialPrecio`, `AlertaStock`).
 - `sql/funciones.sql`: funciones de estado de stock y resumen de ventas.
 - `sql/vistas.sql`: vistas de negocio, incluida `vw_CategoriasMasVendidasPorSegmento`.
-- `sql/sp/`: tipos TVP y procedimientos de ventas, compras, anulaciones y ajustes.
+- `sql/sp/`: procedimientos de ventas, compras, anulaciones y ajustes.
 - `sql/cursores.sql`: informe de reposición de stock.
 - `sql/seed_data.sql`: datos de prueba y casos borde.
 - `sql/seguridad.sql`: logins, usuarios, roles y permisos del motor.

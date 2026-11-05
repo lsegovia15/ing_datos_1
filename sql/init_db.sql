@@ -1,9 +1,9 @@
+USE master;
+GO
 
-IF DB_ID('SIAM') IS NOT NULL
-BEGIN
-    ALTER DATABASE SIAM SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE SIAM;
-END
+-- Borra la base si ya existe para poder volver a crearla desde cero.
+-- (Cerrar antes cualquier otra conexión abierta sobre SIAM.)
+DROP DATABASE IF EXISTS SIAM;
 GO
 
 CREATE DATABASE SIAM;
@@ -207,80 +207,61 @@ GO
 
 
 ALTER TABLE Usuario ADD CONSTRAINT FK_Usuario_Rol
-    FOREIGN KEY (IdRol) REFERENCES Rol (IdRol)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdRol) REFERENCES Rol (IdRol);
 
 ALTER TABLE Producto ADD CONSTRAINT FK_Producto_Categoria
-    FOREIGN KEY (IdCategoria) REFERENCES Categoria (IdCategoria)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdCategoria) REFERENCES Categoria (IdCategoria);
 
 ALTER TABLE Producto ADD CONSTRAINT FK_Producto_Marca
-    FOREIGN KEY (IdMarca) REFERENCES Marca (IdMarca)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdMarca) REFERENCES Marca (IdMarca);
 
 ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Producto
-    FOREIGN KEY (IdProducto) REFERENCES Producto (IdProducto)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdProducto) REFERENCES Producto (IdProducto);
 
 ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Segmento
-    FOREIGN KEY (IdSegmento) REFERENCES Segmento (IdSegmento)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdSegmento) REFERENCES Segmento (IdSegmento);
 
 ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Talle
-    FOREIGN KEY (IdTalle) REFERENCES Talle (IdTalle)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdTalle) REFERENCES Talle (IdTalle);
 
 ALTER TABLE VarianteProducto ADD CONSTRAINT FK_Variante_Color
-    FOREIGN KEY (IdColor) REFERENCES Color (IdColor)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdColor) REFERENCES Color (IdColor);
 
 ALTER TABLE Compra ADD CONSTRAINT FK_Compra_Proveedor
-    FOREIGN KEY (IdProveedor) REFERENCES Proveedor (IdProveedor)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdProveedor) REFERENCES Proveedor (IdProveedor);
 
 ALTER TABLE Compra ADD CONSTRAINT FK_Compra_Usuario
-    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario);
 
 ALTER TABLE DetalleCompra ADD CONSTRAINT FK_DetalleCompra_Compra
-    FOREIGN KEY (IdCompra) REFERENCES Compra (IdCompra)
-    ON DELETE CASCADE;
+    FOREIGN KEY (IdCompra) REFERENCES Compra (IdCompra);
 
 ALTER TABLE DetalleCompra ADD CONSTRAINT FK_DetalleCompra_Variante
-    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante);
 
 ALTER TABLE Venta ADD CONSTRAINT FK_Venta_Cliente
-    FOREIGN KEY (IdCliente) REFERENCES Cliente (IdCliente)
-    ON DELETE SET NULL;
+    FOREIGN KEY (IdCliente) REFERENCES Cliente (IdCliente);
 
 ALTER TABLE Venta ADD CONSTRAINT FK_Venta_Usuario
-    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario);
 
 ALTER TABLE DetalleVenta ADD CONSTRAINT FK_DetalleVenta_Venta
-    FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta)
-    ON DELETE CASCADE;
+    FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta);
 
 ALTER TABLE DetalleVenta ADD CONSTRAINT FK_DetalleVenta_Variante
-    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante);
 
 ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Variante
-    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdVariante) REFERENCES VarianteProducto (IdVariante);
 
 ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Usuario
-    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario)
-    ON DELETE NO ACTION;
+    FOREIGN KEY (IdUsuario) REFERENCES Usuario (IdUsuario);
 
 ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Compra
-    FOREIGN KEY (IdCompra) REFERENCES Compra (IdCompra)
-    ON DELETE SET NULL;
+    FOREIGN KEY (IdCompra) REFERENCES Compra (IdCompra);
 
 ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Venta
-    FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta)
-    ON DELETE SET NULL;
+    FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta);
 GO
 
 -- ÍNDICES
