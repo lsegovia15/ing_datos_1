@@ -92,8 +92,9 @@ BEGIN
         VALUES (@IdVenta, @IdCliente, @IdUsuario, GETDATE(), @MedioPago, @Total, 'CONFIRMADA');
 
         -- Insertar Detalle.
-        -- El trigger TR_DetalleVenta_Insert solo acepta inserciones que vengan
-        -- de este SP. La marca de sesion se limpia siempre al salir.
+        -- Marca de sesion para este SP; se limpia siempre al salir.
+        -- Los triggers TR_DescontarStockVenta y TR_CalcularTotalVenta
+        -- descuentan el stock y recalculan el total.
         EXEC sp_set_session_context @key = N'PermitirDetalleVenta', @value = 1;
 
         INSERT INTO DetalleVenta (IdVenta, NroLinea, IdVariante, Cantidad, PrecioUnitario, Descuento)

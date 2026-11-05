@@ -12,25 +12,19 @@ Las reglas de negocio del local viven en la base de datos y no en la aplicación
 | No hay SKU, DNI, CUIT ni email repetidos | `UNIQUE` | `UQ_Variante_SKU`, `UQ_Cliente_DNI`, `UQ_Proveedor_CUIT`, `UQ_Usuario_Email` |
 | No existen dos variantes con el mismo producto, segmento, talle y color | `UNIQUE` | `UQ_Variante_Combinacion` |
 | Un movimiento proviene de una compra o de una venta, no de ambas | `CHECK` | `CK_Mov_Origen` |
-| El stock nunca es negativo | `CHECK` + trigger | `CK_Variante_Stock`, `TR_MovimientoStock_AplicarStock` |
-| El stock es siempre la suma de sus movimientos | Trigger | `TR_MovimientoStock_AplicarStock` |
-| Toda venta descuenta stock | Trigger | `TR_DetalleVenta_Insert` |
-| Anular una venta devuelve el stock | Trigger | `TR_Venta_CambioEstado` |
-| La mercadería entra al stock recién al recibir la compra | Trigger | `TR_Compra_CambioEstado` |
-| Los totales coinciden con el detalle | Trigger | `TR_DetalleVenta_Insert`, `TR_DetalleCompra_Control` |
-| Una venta anulada no se reactiva | Trigger | `TR_Venta_CambioEstado` |
-| Una compra recibida o anulada queda cerrada | Trigger | `TR_Compra_CambioEstado`, `TR_DetalleCompra_Control` |
-| No se venden productos inactivos | Trigger | `TR_DetalleVenta_Insert` |
-| Un usuario inactivo no opera | Trigger | `TR_Venta_UsuarioActivo`, `TR_Compra_UsuarioActivo` |
-| Ventas, compras y movimientos no se borran ni editan | Trigger | `TR_Venta_NoBorrar`, `TR_Compra_NoBorrar`, `TR_MovimientoStock_Inmutable`, `TR_DetalleVenta_Inmutable` |
-| Todo cambio de precio queda auditado | Trigger | `TR_Variante_HistorialPrecio` |
-| Se avisa cuando una variante llega al mínimo | Trigger | `TR_Variante_AlertaStock` |
+| El stock nunca es negativo | `CHECK` + trigger | `CK_Variante_Stock`, `TR_DescontarStockVenta` |
+| Toda venta descuenta stock | Trigger | `TR_DescontarStockVenta` |
+| Anular una venta devuelve el stock | Trigger | `TR_DevolverStockAnulacion` |
+| La mercadería entra al stock recién al recibir la compra | Trigger | `TR_SumarStockCompra` |
+| Un ajuste de stock se aplica sobre el stock | Trigger | `TR_AplicarAjusteStock` |
+| El total de la venta coincide con el detalle | Trigger | `TR_CalcularTotalVenta` |
+| Las ventas no se borran | Trigger + permisos | `TR_NoBorrarVenta`, `DENY DELETE` |
+| Todo cambio de precio queda registrado | Trigger | `TR_HistorialPrecio` |
+| Se avisa cuando una variante llega al mínimo | Trigger | `TR_AvisoStockMinimo` |
 | Una venta se registra completa o no se registra | SP + transacción | `SP_RegistrarVenta` |
 | Un ajuste de stock queda registrado con su motivo y su autor | SP | `SP_AjustarStock` |
-| Una compra se registra completa y entra al stock recién al recibirla | SP + trigger | `SP_RegistrarCompra`, `SP_RecibirCompra`, `TR_Compra_CambioEstado` |
-| Las ventas solo se cargan por el SP | SP + trigger | `SP_RegistrarVenta`, `TR_DetalleVenta_Insert` |
+| Una compra se registra completa y entra al stock recién al recibirla | SP + trigger | `SP_RegistrarCompra`, `SP_RecibirCompra`, `TR_SumarStockCompra` |
 | Solo el administrador anula, ajusta y compra | SP + permisos | Validación de rol en los SPs y `DENY EXECUTE` (sección 18) |
-| La anulación queda registrada a nombre de quien la autoriza | SP + trigger | `SP_AnularVenta`, `TR_Venta_CambioEstado` |
 | El criterio de "stock bajo" es uno solo | Vista / función | `vw_StockVariante`, `fn_EstadoStock` |
 | Cuánto reponer de cada variante | Cursor | `SP_InformeReposicionStock` |
 
@@ -43,6 +37,6 @@ Las reglas de negocio del local viven en la base de datos y no en la aplicación
 
 ## Beneficios
 
-- **Consistencia:** ninguna aplicación cliente puede dejar el stock desfasado de los movimientos ni una venta sin detalle.
+- **Consistencia:** el stock y el total de cada venta se actualizan en la misma transacción que la operación, sin depender de la aplicación cliente.
 - **Un solo lugar para cambiar una regla:** por ejemplo, si cambia el criterio de stock bajo, se modifica la vista y la función, no cada pantalla.
-- **Auditoría:** movimientos, historial de precios y alertas se generan automáticamente, sin depender de que alguien se acuerde de registrarlos.
+- **Auditoría:** el historial de precios y las alertas de stock bajo se generan automáticamente; los ajustes de stock quedan en `MovimientoStock`.

@@ -149,7 +149,7 @@ Tipos de movimiento:
 
 Se relaciona con **VarianteProducto**.
 
-El stock se controla automáticamente mediante triggers y procedimientos almacenados: cada movimiento actualiza `VarianteProducto.StockActual` y las alertas de stock mínimo se registran en la tabla auxiliar `AlertaStock`.
+El stock se controla automáticamente mediante triggers y procedimientos almacenados: las ventas, anulaciones, compras recibidas y ajustes actualizan `VarianteProducto.StockActual` y las alertas de stock mínimo se registran en la tabla auxiliar `AlertaStock`.
 
 ---
 

@@ -54,8 +54,8 @@ BEGIN
             THROW 50111, 'No se puede recibir una compra sin líneas de detalle.', 1;
         END;
 
-        -- El trigger TR_Compra_CambioEstado usa este contexto para registrar
-        -- los movimientos de ENTRADA a nombre de quien recibe.
+        -- Guarda quién recibe en el contexto de sesión.
+        -- TR_SumarStockCompra suma el stock al pasar a RECIBIDA.
         EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
 
         UPDATE Compra

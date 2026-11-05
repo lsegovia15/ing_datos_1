@@ -42,7 +42,7 @@ El orden que sigue el script maestro es:
 | # | Script | Crea |
 |---|---|---|
 | 1 | `sql/init_db.sql` | Base de datos, tablas, restricciones e índices (borra la base si ya existe) |
-| 2 | `sql/siam_triggers.sql` | Tablas `HistorialPrecio` y `AlertaStock`, y los 13 triggers |
+| 2 | `sql/siam_triggers.sql` | Tablas `HistorialPrecio` y `AlertaStock`, y los 8 triggers |
 | 3 | `sql/funciones.sql` | Funciones |
 | 4 | `sql/vistas.sql` | Vistas |
 | 5 | `sql/sp/SPs.sql` | Tipos de tabla `TipoDetalleVenta` y `TipoDetalleCompra` |
@@ -67,8 +67,8 @@ La lógica de negocio se reparte en capas dentro del motor:
  Tablas (Venta, DetalleVenta, Compra, MovimientoStock...)
         │  restricciones: PK, FK, UNIQUE, CHECK
         ▼
- Triggers ── generan movimientos de stock, actualizan StockActual,
-             recalculan totales, auditan precios y alertan stock bajo
+ Triggers ── actualizan StockActual, recalculan el total de la venta,
+             auditan precios y alertan stock bajo
 ```
 
-Todas las modificaciones de stock pasan por la tabla `MovimientoStock`. `VarianteProducto.StockActual` nunca se escribe directamente: siempre es la suma de los movimientos de esa variante.
+`VarianteProducto.StockActual` lo actualizan los triggers de venta, anulación, recepción de compra y ajuste. `MovimientoStock` registra los ajustes manuales.
