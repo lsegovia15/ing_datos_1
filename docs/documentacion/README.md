@@ -45,11 +45,10 @@ El orden que sigue el script maestro es:
 | 2 | `sql/siam_triggers.sql` | Tablas `HistorialPrecio` y `AlertaStock`, y los 8 triggers |
 | 3 | `sql/funciones.sql` | Funciones |
 | 4 | `sql/vistas.sql` | Vistas |
-| 5 | `sql/sp/SPs.sql` | Tipos de tabla `TipoDetalleVenta` y `TipoDetalleCompra` |
-| 6 | `sql/sp/SP_RegistrarVenta.sql`<br>`sql/sp/SP_AnularVenta.sql`<br>`sql/sp/SP_AjustarStock.sql`<br>`sql/sp/SP_RegistrarCompra.sql`<br>`sql/sp/SP_RecibirCompra.sql` | Stored procedures de operación |
-| 7 | `sql/cursores.sql` | `SP_InformeReposicionStock` (usa un cursor) |
-| 8 | `sql/seed_data.sql` | Datos de prueba (no se vuelve a cargar si ya hay datos) |
-| 9 | `sql/seguridad.sql` | Logins, usuarios, roles de base de datos y permisos |
+| 5 | `sql/sp/SP_RegistrarVenta.sql`<br>`sql/sp/SP_AnularVenta.sql`<br>`sql/sp/SP_AjustarStock.sql`<br>`sql/sp/SP_RegistrarCompra.sql`<br>`sql/sp/SP_RecibirCompra.sql` | Stored procedures de operación |
+| 6 | `sql/cursores.sql` | `SP_InformeReposicionStock` (usa un cursor) |
+| 7 | `sql/seed_data.sql` | Datos de prueba (no se vuelve a cargar si ya hay datos) |
+| 8 | `sql/seguridad.sql` | Logins, usuarios, roles de base de datos y permisos |
 
 Las consultas de `sql/Subconsultas.sql` y `sql/sp/ConsultasAvanzadas.sql` no crean objetos: se ejecutan una vez cargados los datos.
 

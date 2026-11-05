@@ -19,18 +19,11 @@ INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
 INSERT INTO dbo.Usuario
     (IdUsuario, IdRol, NombreUsuario, Email, Contrasena, Nombre, Apellido, Activo)
 VALUES
-    (1, 1, 'admin',           'admin@siam.local',
-        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin123!'), 2),
-        'Ana',   'Administradora', 1),
-    (2, 2, 'vendedor1',       'vendedor1@siam.local',
-        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Vendedor123!'), 2),
-        'Bruno', 'Vendedor',       1),
-    (3, 2, 'vendedor2',       'vendedor2@siam.local',
-        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Vendedor123!'), 2),
-        'Carla', 'Vendedora',      1),
-    (4, 2, 'vendedor_inactivo', 'inactivo@siam.local',
-        CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Inactivo123!'), 2),
-        'Diego', 'Inactivo',       0);
+    -- Contraseñas de ejemplo en texto plano (datos de prueba).
+    (1, 1, 'admin',             'admin@siam.local',     'Admin123!',    'Ana',   'Administradora', 1),
+    (2, 2, 'vendedor1',         'vendedor1@siam.local', 'Vendedor123!', 'Bruno', 'Vendedor',       1),
+    (3, 2, 'vendedor2',         'vendedor2@siam.local', 'Vendedor123!', 'Carla', 'Vendedora',      1),
+    (4, 2, 'vendedor_inactivo', 'inactivo@siam.local',  'Inactivo123!', 'Diego', 'Inactivo',       0);
 
 
 -- 2. CATÁLOGOS
@@ -65,8 +58,9 @@ INSERT INTO dbo.Color (IdColor, Nombre) VALUES
 
 
 -- 3. PRODUCTOS Y VARIANTES
--- Stock inicial 0: el stock real ingresa con la compra recibida.
--- Así los movimientos de ENTRADA quedan coherentes.
+-- Las variantes se cargan con un stock inicial (inventario de apertura).
+-- Desde acá, el stock solo cambia por compras recibidas, ventas,
+-- anulaciones y ajustes.
 
 INSERT INTO dbo.Producto (IdProducto, IdCategoria, IdMarca, Nombre, Descripcion, PrecioBase, Activo) VALUES
     (1, 1, 1, 'Remera Oversize Graffiti', 'Remera de algodón con estampa',      15000.00, 1),
@@ -80,18 +74,18 @@ INSERT INTO dbo.Producto (IdProducto, IdCategoria, IdMarca, Nombre, Descripcion,
 INSERT INTO dbo.VarianteProducto
     (IdVariante, IdProducto, IdSegmento, IdTalle, IdColor, SKU, PrecioVenta, StockActual, StockMinimo)
 VALUES
-    (1,  1, 1, 2, 1, 'REM-OVG-M-NEG',   18000.00, 0, 5),
-    (2,  1, 1, 3, 1, 'REM-OVG-L-NEG',   18000.00, 0, 5),
-    (3,  1, 2, 2, 2, 'REM-OVG-M-BLA',   18000.00, 0, 5),
-    (4,  2, 5, 3, 3, 'BUZ-HOOD-L-GRI',  30000.00, 0, 4),
-    (5,  2, 5, 2, 1, 'BUZ-HOOD-M-NEG',  30000.00, 0, 4),
-    (6,  3, 1, 7, 6, 'PAN-CARGO-40-BEI',27000.00, 0, 3),
-    (7,  3, 2, 6, 1, 'PAN-CARGO-38-NEG',27000.00, 0, 3),
-    (8,  4, 1, 2, 5, 'BER-BAG-M-CEL',   15000.00, 0, 3),
-    (9,  4, 2, 1, 2, 'BER-BAG-S-BLA',   15000.00, 0, 3),
-    (10, 5, 5, 3, 1, 'CAM-PUF-L-NEG',   48000.00, 0, 2),
-    (11, 6, 3, 1, 2, 'REM-BAS-S-BLA',   10000.00, 0, 5),
-    (12, 6, 4, 1, 7, 'REM-BAS-S-ROJ',   10000.00, 0, 5);
+    (1,  1, 1, 2, 1, 'REM-OVG-M-NEG',   18000.00, 20, 5),
+    (2,  1, 1, 3, 1, 'REM-OVG-L-NEG',   18000.00,  3, 5),
+    (3,  1, 2, 2, 2, 'REM-OVG-M-BLA',   18000.00,  0, 5),
+    (4,  2, 5, 3, 3, 'BUZ-HOOD-L-GRI',  30000.00, 10, 4),
+    (5,  2, 5, 2, 1, 'BUZ-HOOD-M-NEG',  30000.00,  2, 4),
+    (6,  3, 1, 7, 6, 'PAN-CARGO-40-BEI',27000.00,  8, 3),
+    (7,  3, 2, 6, 1, 'PAN-CARGO-38-NEG',27000.00,  0, 3),
+    (8,  4, 1, 2, 5, 'BER-BAG-M-CEL',   15000.00,  6, 3),
+    (9,  4, 2, 1, 2, 'BER-BAG-S-BLA',   15000.00,  1, 3),
+    (10, 5, 5, 3, 1, 'CAM-PUF-L-NEG',   48000.00,  4, 2),
+    (11, 6, 3, 1, 2, 'REM-BAS-S-BLA',   10000.00,  0, 5),
+    (12, 6, 4, 1, 7, 'REM-BAS-S-ROJ',   10000.00,  2, 5);
 
 
 -- 4. PROVEEDORES Y CLIENTES
@@ -107,277 +101,212 @@ INSERT INTO dbo.Cliente (IdCliente, Nombre, Apellido, DNI, Telefono, Email, Dire
     (3, 'Sofía',  'Rodríguez','33444555', '11-5555-2003', 'sofia.rodriguez@mail.com','Caballito 333');
 
 
--- 5. COMPRAS
+-- 5. COMPRAS (un producto por compra)
 
-DECLARE @dc TipoDetalleCompra;
-DECLARE @dv TipoDetalleVenta;
-DECLARE @dcVacio TipoDetalleCompra;
-DECLARE @dvSinStock TipoDetalleVenta;
-DECLARE @StockActual INT;
-
--- Compra 1: RECIBIDA. Es la carga inicial de stock.
-INSERT INTO @dc (IdVariante, Cantidad, CostoUnitario) VALUES
-    (1, 20, 9000.00),
-    (2,  3, 9000.00),
-    (4, 10, 15000.00),
-    (5,  2, 15000.00),
-    (6,  8, 12000.00),
-    (8,  6, 7000.00),
-    (9,  1, 7000.00),
-    (10, 4, 25000.00),
-    (12, 2, 5000.00);
-
+-- Compra 1: se registra PENDIENTE y se recibe. Suma 5 unidades a la variante 1.
 EXEC dbo.SP_RegistrarCompra
-    @IdProveedor = 1,
-    @IdUsuario = 1,
-    @NroComprobante = 'FC-A-0001-00000001',
-    @Detalle = @dc;
+    @IdProveedor = 1, @IdUsuario = 1,
+    @IdVariante = 1, @Cantidad = 5, @CostoUnitario = 9000.00,
+    @NroComprobante = 'FC-A-0001-00000001';
 
 EXEC dbo.SP_RecibirCompra @IdCompra = 1, @IdUsuario = 1;
 
--- Cerrar las alertas iniciales de las variantes que ya quedaron con stock
--- suficiente. Las variantes bajas/cero conservan su alerta abierta.
-UPDATE dbo.AlertaStock
-SET Atendida = 1
-WHERE Atendida = 0
-  AND IdVariante IN (
-      SELECT IdVariante
-      FROM dbo.VarianteProducto
-      WHERE StockActual > StockMinimo
-  );
-
--- Compra 2: PENDIENTE. No modifica stock hasta que se reciba.
-DELETE FROM @dc;
-INSERT INTO @dc (IdVariante, Cantidad, CostoUnitario) VALUES
-    (1, 5, 9000.00),
-    (4, 5, 15000.00);
-
+-- Compra 2: queda PENDIENTE. No modifica el stock hasta que se reciba.
 EXEC dbo.SP_RegistrarCompra
-    @IdProveedor = 2,
-    @IdUsuario = 1,
-    @NroComprobante = 'FC-B-0001-00000002',
-    @Detalle = @dc;
+    @IdProveedor = 2, @IdUsuario = 1,
+    @IdVariante = 4, @Cantidad = 5, @CostoUnitario = 15000.00,
+    @NroComprobante = 'FC-B-0001-00000002';
 
--- Compra 3: ANULADA. Se registra PENDIENTE y luego se anula sin mover stock.
-DELETE FROM @dc;
-INSERT INTO @dc (IdVariante, Cantidad, CostoUnitario) VALUES
-    (2, 10, 9000.00),
-    (9,  5, 7000.00);
-
+-- Compra 3: se registra PENDIENTE y se anula sin mover stock.
 EXEC dbo.SP_RegistrarCompra
-    @IdProveedor = 3,
-    @IdUsuario = 1,
-    @NroComprobante = 'FC-C-0001-00000003',
-    @Detalle = @dc;
+    @IdProveedor = 3, @IdUsuario = 1,
+    @IdVariante = 2, @Cantidad = 10, @CostoUnitario = 9000.00,
+    @NroComprobante = 'FC-C-0001-00000003';
 
 UPDATE dbo.Compra
 SET Estado = 'ANULADA'
 WHERE IdCompra = 3;
 
 
--- 6. VENTAS
+-- 6. VENTAS (un producto por venta)
 
--- Venta 1: CONFIRMADA. Vendedor 1.
-INSERT INTO @dv (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
-    (1, 2, 18000.00, 0),
-    (4, 1, 30000.00, 0);
-
+-- Venta 1: CONFIRMADA. Vendedor 1, cliente 1.
 EXEC dbo.SP_RegistrarVenta
-    @IdCliente = 1,
-    @IdUsuario = 2,
-    @MedioPago = 'EFECTIVO',
-    @Detalle = @dv;
+    @IdCliente = 1, @IdUsuario = 2, @MedioPago = 'EFECTIVO',
+    @IdVariante = 1, @Cantidad = 2;
 
--- Venta 2: CONFIRMADA y luego ANULADA. Vendedor 2.
-DELETE FROM @dv;
-INSERT INTO @dv (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
-    (2, 1, 18000.00, 0),
-    (8, 2, 15000.00, 0);
-
+-- Venta 2: CONFIRMADA. Vendedor 1, cliente 1 (compra un buzo).
 EXEC dbo.SP_RegistrarVenta
-    @IdCliente = 2,
-    @IdUsuario = 3,
-    @MedioPago = 'DEBITO',
-    @Detalle = @dv;
+    @IdCliente = 1, @IdUsuario = 2, @MedioPago = 'EFECTIVO',
+    @IdVariante = 4, @Cantidad = 1;
 
-EXEC dbo.SP_AnularVenta @IdVenta = 2, @IdUsuario = 1;
-
--- Venta 3: CONFIRMADA, consumidor final. Vendedor 1.
--- La venta de 2 unidades de la variante 10 cruza el mínimo y genera alerta.
-DELETE FROM @dv;
-INSERT INTO @dv (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
-    (6, 1, 27000.00, 0),
-    (10, 2, 48000.00, 0);
-
+-- Venta 3: CONFIRMADA y luego ANULADA por el administrador.
 EXEC dbo.SP_RegistrarVenta
-    @IdCliente = NULL,
-    @IdUsuario = 2,
-    @MedioPago = 'TRANSFERENCIA',
-    @Detalle = @dv;
+    @IdCliente = 2, @IdUsuario = 3, @MedioPago = 'DEBITO',
+    @IdVariante = 8, @Cantidad = 2;
 
--- Venta 4: CONFIRMADA y luego ANULADA. Vendedor 2.
-DELETE FROM @dv;
-INSERT INTO @dv (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
-    (9, 1, 15000.00, 0);
+EXEC dbo.SP_AnularVenta @IdVenta = 3, @IdUsuario = 1;
 
+-- Venta 4: CONFIRMADA, consumidor final. La variante 10 baja de 4 a 2
+-- unidades, llega al mínimo y TR_AvisoStockMinimo genera una alerta.
 EXEC dbo.SP_RegistrarVenta
-    @IdCliente = 3,
-    @IdUsuario = 3,
-    @MedioPago = 'CREDITO',
-    @Detalle = @dv;
+    @IdCliente = NULL, @IdUsuario = 2, @MedioPago = 'TRANSFERENCIA',
+    @IdVariante = 10, @Cantidad = 2;
 
-EXEC dbo.SP_AnularVenta @IdVenta = 4, @IdUsuario = 1;
+-- Venta 5: CONFIRMADA con descuento de $2000.
+EXEC dbo.SP_RegistrarVenta
+    @IdCliente = 3, @IdUsuario = 3, @MedioPago = 'CREDITO',
+    @IdVariante = 6, @Cantidad = 1, @Descuento = 2000.00;
+
+-- Venta 6: CONFIRMADA y luego ANULADA.
+EXEC dbo.SP_RegistrarVenta
+    @IdCliente = 3, @IdUsuario = 3, @MedioPago = 'CREDITO',
+    @IdVariante = 9, @Cantidad = 1;
+
+EXEC dbo.SP_AnularVenta @IdVenta = 6, @IdUsuario = 1;
 
 
 -- 7. AJUSTES DE STOCK
 
--- Ajuste real: la variante 1 pasa de 18 a 17 (movimiento AJUSTE -1).
+-- Ajuste real: la variante 1 pasa de 23 a 22 (movimiento AJUSTE -1).
 EXEC dbo.SP_AjustarStock
-    @IdVariante = 1,
-    @NuevaCantidad = 17,
-    @IdUsuario = 1,
+    @IdVariante = 1, @NuevaCantidad = 22, @IdUsuario = 1,
     @Observacion = 'Ajuste por recuento físico';
 
--- Caso borde: ajuste sin diferencia. No debe generar movimiento.
-SELECT @StockActual = StockActual FROM dbo.VarianteProducto WHERE IdVariante = 1;
-
+-- Ajuste sin diferencia: no genera movimiento.
 EXEC dbo.SP_AjustarStock
-    @IdVariante = 1,
-    @NuevaCantidad = @StockActual,
-    @IdUsuario = 1,
+    @IdVariante = 1, @NuevaCantidad = 22, @IdUsuario = 1,
     @Observacion = 'Prueba de ajuste sin diferencia';
 
 
--- 8. CASOS BORDE / PRUEBAS DE ERROR
--- Los errores se capturan para que el seed pueda terminar.
+-- 8. CASOS DE ERROR
+-- Cada caso se ejecuta dentro de BEGIN TRY / BEGIN CATCH para mostrar
+-- el error y que el seed pueda seguir.
 
-
--- 8.1 Venta sin stock: variante 3 tiene stock 0.
-INSERT INTO @dvSinStock (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
-    (3, 1, 18000.00, 0);
-
+-- 8.1 Venta sin stock: la variante 3 tiene stock 0. Esperado: 50006.
 BEGIN TRY
     EXEC dbo.SP_RegistrarVenta
-        @IdCliente = 1,
-        @IdUsuario = 2,
-        @MedioPago = 'EFECTIVO',
-        @Detalle = @dvSinStock;
-
-    SELECT 'VENTA_SIN_STOCK' AS Caso, 'ERROR: la venta no debió registrarse' AS Resultado;
+        @IdCliente = 1, @IdUsuario = 2, @MedioPago = 'EFECTIVO',
+        @IdVariante = 3, @Cantidad = 1;
+    SELECT '8.1 VENTA_SIN_STOCK' AS Caso, 'ERROR: la venta no debió registrarse' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'VENTA_SIN_STOCK' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.1 VENTA_SIN_STOCK' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.2 Compra sin líneas: TVP vacío.
+-- 8.2 Compra con cantidad 0. Esperado: 50104.
 BEGIN TRY
     EXEC dbo.SP_RegistrarCompra
-        @IdProveedor = 1,
-        @IdUsuario = 1,
-        @NroComprobante = 'TEST-SIN-DETALLE',
-        @Detalle = @dcVacio;
-
-    SELECT 'COMPRA_SIN_DETALLE' AS Caso, 'ERROR: la compra no debió registrarse' AS Resultado;
+        @IdProveedor = 1, @IdUsuario = 1,
+        @IdVariante = 1, @Cantidad = 0, @CostoUnitario = 9000.00;
+    SELECT '8.2 COMPRA_CANTIDAD_CERO' AS Caso, 'ERROR: la compra no debió registrarse' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'COMPRA_SIN_DETALLE' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.2 COMPRA_CANTIDAD_CERO' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.3 Recepción de compra sin líneas: cabecera PENDIENTE sin detalle.
-INSERT INTO dbo.Compra
-    (IdCompra, IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado)
-VALUES
-    (4, 1, 1, GETDATE(), 'TEST-RECEPCION-SIN-LINEAS', 0, 'PENDIENTE');
+-- 8.3 Recibir una compra sin líneas. Esperado: 50111.
+-- Se inserta una cabecera PENDIENTE sin detalle solo para la prueba.
+INSERT INTO dbo.Compra (IdCompra, IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado)
+VALUES (4, 1, 1, GETDATE(), 'TEST-RECEPCION-SIN-LINEAS', 0, 'PENDIENTE');
 
 BEGIN TRY
     EXEC dbo.SP_RecibirCompra @IdCompra = 4, @IdUsuario = 1;
-    SELECT 'RECEPCION_SIN_LINEAS' AS Caso, 'ERROR: la compra no debió recibirse' AS Resultado;
+    SELECT '8.3 RECEPCION_SIN_LINEAS' AS Caso, 'ERROR: la compra no debió recibirse' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'RECEPCION_SIN_LINEAS' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.3 RECEPCION_SIN_LINEAS' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- Dejar la compra de prueba en un estado válido y sin stock asociado.
+-- La compra de prueba queda anulada.
 UPDATE dbo.Compra
 SET Estado = 'ANULADA'
 WHERE IdCompra = 4;
 
--- 8.4 Anulación duplicada: la venta 2 ya está ANULADA.
+-- 8.4 Anular una venta ya anulada (venta 3). Esperado: 50011.
 BEGIN TRY
-    EXEC dbo.SP_AnularVenta @IdVenta = 2, @IdUsuario = 1;
-    SELECT 'ANULACION_DUPLICADA' AS Caso, 'ERROR: la venta no debió anularse dos veces' AS Resultado;
+    EXEC dbo.SP_AnularVenta @IdVenta = 3, @IdUsuario = 1;
+    SELECT '8.4 ANULACION_DUPLICADA' AS Caso, 'ERROR: la venta no debió anularse dos veces' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'ANULACION_DUPLICADA' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.4 ANULACION_DUPLICADA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.5 Anulación por Vendedor: la venta 3 sigue CONFIRMADA.
+-- 8.5 Un vendedor intenta anular una venta. Esperado: 50013.
 BEGIN TRY
-    EXEC dbo.SP_AnularVenta @IdVenta = 3, @IdUsuario = 2;
-    SELECT 'ANULACION_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió anular' AS Resultado;
+    EXEC dbo.SP_AnularVenta @IdVenta = 1, @IdUsuario = 2;
+    SELECT '8.5 ANULACION_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió anular' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'ANULACION_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.5 ANULACION_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.6 Ajuste por Vendedor: la regla interna del SP debe rechazarlo.
+-- 8.6 Un vendedor intenta ajustar stock. Esperado: 50023.
 BEGIN TRY
     EXEC dbo.SP_AjustarStock
-        @IdVariante = 1,
-        @NuevaCantidad = 17,
-        @IdUsuario = 2,
+        @IdVariante = 1, @NuevaCantidad = 10, @IdUsuario = 2,
         @Observacion = 'Prueba de rol no autorizado';
-
-    SELECT 'AJUSTE_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió ajustar stock' AS Resultado;
+    SELECT '8.6 AJUSTE_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió ajustar stock' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'AJUSTE_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.6 AJUSTE_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.7 Compra por Vendedor: la regla interna del SP debe rechazarlo.
-DELETE FROM @dc;
-INSERT INTO @dc (IdVariante, Cantidad, CostoUnitario) VALUES
-    (1, 1, 9000.00);
-
+-- 8.7 Un vendedor intenta registrar una compra. Esperado: 50107.
 BEGIN TRY
     EXEC dbo.SP_RegistrarCompra
-        @IdProveedor = 1,
-        @IdUsuario = 2,
-        @NroComprobante = 'TEST-COMPRA-VENDEDOR',
-        @Detalle = @dc;
-
-    SELECT 'COMPRA_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió registrar una compra' AS Resultado;
+        @IdProveedor = 1, @IdUsuario = 2,
+        @IdVariante = 1, @Cantidad = 1, @CostoUnitario = 9000.00;
+    SELECT '8.7 COMPRA_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió registrar una compra' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'COMPRA_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.7 COMPRA_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.8 Recepción por Vendedor: la compra 2 sigue PENDIENTE.
+-- 8.8 Un vendedor intenta recibir la compra 2 (PENDIENTE). Esperado: 50114.
 BEGIN TRY
     EXEC dbo.SP_RecibirCompra @IdCompra = 2, @IdUsuario = 2;
-    SELECT 'RECEPCION_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió recibir una compra' AS Resultado;
+    SELECT '8.8 RECEPCION_POR_VENDEDOR' AS Caso, 'ERROR: un vendedor no debió recibir una compra' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'RECEPCION_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.8 RECEPCION_POR_VENDEDOR' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
--- 8.9 Venta con usuario inactivo: se rechaza antes de abrir la transacción.
-DELETE FROM @dvSinStock;
-INSERT INTO @dvSinStock (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
-    (1, 1, 18000.00, 0);
-
+-- 8.9 Venta registrada por un usuario inactivo. Esperado: 50002.
 BEGIN TRY
     EXEC dbo.SP_RegistrarVenta
-        @IdCliente = 1,
-        @IdUsuario = 4,
-        @MedioPago = 'EFECTIVO',
-        @Detalle = @dvSinStock;
-
-    SELECT 'VENTA_USUARIO_INACTIVO' AS Caso, 'ERROR: un usuario inactivo no debió vender' AS Resultado;
+        @IdCliente = 1, @IdUsuario = 4, @MedioPago = 'EFECTIVO',
+        @IdVariante = 1, @Cantidad = 1;
+    SELECT '8.9 VENTA_USUARIO_INACTIVO' AS Caso, 'ERROR: un usuario inactivo no debió vender' AS Resultado;
 END TRY
 BEGIN CATCH
-    SELECT 'VENTA_USUARIO_INACTIVO' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
+    SELECT '8.9 VENTA_USUARIO_INACTIVO' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
+
+-- 8.10 Borrar una venta. TR_NoBorrarVenta lo impide. Esperado: 50203.
+BEGIN TRY
+    DELETE FROM dbo.Venta WHERE IdVenta = 1;
+    SELECT '8.10 BORRAR_VENTA' AS Caso, 'ERROR: la venta no debió borrarse' AS Resultado;
+END TRY
+BEGIN CATCH
+    -- El error viene de un trigger: se revierte la operación si quedó abierta.
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+    SELECT '8.10 BORRAR_VENTA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
+END CATCH;
+
+-- 8.11 Reactivar una venta anulada. TR_DevolverStockAnulacion lo impide. Esperado: 50201.
+BEGIN TRY
+    UPDATE dbo.Venta SET Estado = 'CONFIRMADA' WHERE IdVenta = 3;
+    SELECT '8.11 REACTIVAR_VENTA' AS Caso, 'ERROR: la venta no debió reactivarse' AS Resultado;
+END TRY
+BEGIN CATCH
+    -- El error viene de un trigger: se revierte la operación si quedó abierta.
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+    SELECT '8.11 REACTIVAR_VENTA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
+END CATCH;
+
 
 -- 9. RESUMEN DEL SEED
 
