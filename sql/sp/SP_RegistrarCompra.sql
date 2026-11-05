@@ -1,7 +1,7 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_RegistrarCompra
+CREATE OR ALTER PROCEDURE SP_RegistrarCompra
     @IdProveedor    INT,
     @IdUsuario      INT,
     @IdVariante     INT,
@@ -14,7 +14,7 @@ BEGIN
     DECLARE @Total DECIMAL(12,2);
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
+        -- 1. VALIDACIONES
         IF (@Cantidad <= 0)
         BEGIN
             PRINT 'Error: La cantidad debe ser mayor a cero.';
@@ -35,7 +35,7 @@ BEGIN
 
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario que registra la compra no existe o está inactivo.';
+            PRINT 'Error: El usuario no existe o está inactivo.';
             RETURN;
         END
 
@@ -61,23 +61,23 @@ BEGIN
         -- 2. TRANSACCIÓN ATÓMICA
         BEGIN TRANSACTION;
 
-        -- Cálculo del total
+        -- Guardar datos de sesión para triggers
+        EXEC sys.sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
+
         SET @Total = @Cantidad * @CostoUnitario;
 
-        -- Generación de clave primaria con MAX e ISNULL
         SELECT @IdCompra = ISNULL(MAX(IdCompra), 0) + 1 FROM Compra;
 
-        -- Inserción de Cabecera
+        -- Inserción de cabecera en estado PENDIENTE
         INSERT INTO Compra (IdCompra, IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado)
         VALUES (@IdCompra, @IdProveedor, @IdUsuario, GETDATE(), @NroComprobante, @Total, 'PENDIENTE');
 
-        -- Inserción de Detalle (NroLinea fijo = 1 para la línea de compra)
+        -- Inserción de Detalle
         INSERT INTO DetalleCompra (IdCompra, NroLinea, IdVariante, Cantidad, CostoUnitario)
         VALUES (@IdCompra, 1, @IdVariante, @Cantidad, @CostoUnitario);
 
         COMMIT TRANSACTION;
 
-        -- Mensaje y resultado de salida
         SELECT @IdCompra AS IdCompraGenerada, @Total AS TotalCompra,
                'Compra registrada exitosamente en estado PENDIENTE' AS Mensaje;
 
