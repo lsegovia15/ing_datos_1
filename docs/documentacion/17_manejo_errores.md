@@ -38,7 +38,7 @@ END CATCH
 
 ## Errores dentro de transacciones
 
-Los triggers corren dentro de la transacción de la sentencia que los dispara. Si un trigger lanza `THROW` (hoy solo `TR_DescontarStockVenta`), se revierte **todo**: la cabecera de la venta y sus líneas. Ejemplo: si al registrar una venta la segunda línea no tiene stock, no queda registrada ni la cabecera ni la primera línea.
+Los triggers corren dentro de la transacción de la sentencia que los dispara. Si un trigger lanza `THROW` (`TR_DescontarStockVenta`, `TR_DevolverStockAnulacion`, `TR_SumarStockCompra` o `TR_NoBorrarVenta`), se revierte **todo**: la cabecera de la venta y sus líneas. Ejemplo: si al registrar una venta la segunda línea no tiene stock, no queda registrada ni la cabecera ni la primera línea.
 
 ## Concurrencia
 
@@ -67,9 +67,10 @@ Dos usuarios operando al mismo tiempo pueden generar errores aunque cada operaci
 | Permisos insuficientes | Un vendedor intenta anular, ajustar stock o registrar o recibir compras | SP | 50007, 50013, 50023, 50107, 50114 |
 | Permisos insuficientes | Acceso directo a tablas o SPs no permitidos para el rol del motor | `DENY` | 229, 230 (motor) |
 | Operaciones no permitidas | Anular una venta ya anulada | SP | 50011 |
-| Operaciones no permitidas | Vender sin stock | SP / trigger | 50006, 50001 (trigger) |
+| Operaciones no permitidas | Vender sin stock | SP / trigger | 50006, 50200 (trigger) |
+| Operaciones no permitidas | Reactivar una venta anulada o volver a recibir una compra | Trigger | 50201, 50202 |
 | Operaciones no permitidas | Recibir una compra vacía o que no está pendiente | SP | 50111, 50112 |
-| Operaciones no permitidas | Borrar una venta | Trigger `INSTEAD OF` (sin error, no borra) y `DENY DELETE` (229) | — |
+| Operaciones no permitidas | Borrar una venta | Trigger `INSTEAD OF` y `DENY DELETE` (229) | 50203 |
 | Errores durante transacciones | Falla a mitad de una venta | `XACT_ABORT` + `ROLLBACK` | — |
 
 ## Catálogo de códigos propios
@@ -80,6 +81,7 @@ Los rangos están separados para identificar de inmediato el origen del error:
 |---|---|
 | 50001 – 50099 | Stored procedures de ventas y stock |
 | 50100 – 50199 | Stored procedures de compras |
+| 50200 – 50299 | Triggers |
 
 | Código | Origen | Mensaje |
 |---|---|---|
@@ -111,8 +113,10 @@ Los rangos están separados para identificar de inmediato el origen del error:
 | 50112 | `SP_RecibirCompra` | Solo una compra en estado PENDIENTE puede recibirse. |
 | 50113 | `SP_RecibirCompra` | El usuario que recibe la compra no existe o está inactivo. |
 | 50114 | `SP_RecibirCompra` | Solo un usuario Administrador activo puede recibir compras. |
-
-El único trigger que lanza un error propio es `TR_DescontarStockVenta`: usa el 50001 con el mensaje "No hay stock suficiente para realizar la venta.". El mismo número lo usa `SP_RegistrarVenta` para "El detalle de la venta está vacío.", así que conviene mirar el mensaje para distinguirlos.
+| 50200 | `TR_DescontarStockVenta` | No hay stock suficiente para realizar la venta. |
+| 50201 | `TR_DevolverStockAnulacion` | Cambio de estado de venta no permitido. Solo se puede pasar de CONFIRMADA a ANULADA. |
+| 50202 | `TR_SumarStockCompra` | Cambio de estado de compra no permitido. Solo se puede pasar de PENDIENTE a RECIBIDA o ANULADA. |
+| 50203 | `TR_NoBorrarVenta` | Las ventas no se pueden borrar. Use SP_AnularVenta para anularla. |
 
 ## Ejemplo: capturar un error desde quien llama
 

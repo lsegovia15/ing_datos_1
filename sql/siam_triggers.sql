@@ -5,27 +5,35 @@ GO
 
 -- 1. Al vender: descontar el stock
 --    Si no alcanza el stock, se cancela la venta.
+--    Se agrupa por variante: si en un mismo INSERT la misma variante
+--    aparece en varias filas (por ejemplo, en dos ventas distintas),
+--    se descuenta la suma de todas y no solo una de ellas.
 
 CREATE TRIGGER TR_DescontarStockVenta
 ON DetalleVenta
 AFTER INSERT
 AS
 BEGIN
+    SET NOCOUNT ON;
 
-    -- VALIDAR STOCK
+    -- VALIDAR STOCK (contra el total pedido por variante)
     IF EXISTS (SELECT 1
-               FROM inserted i
+               FROM (SELECT IdVariante, SUM(Cantidad) AS Cantidad
+                     FROM inserted
+                     GROUP BY IdVariante) i
                JOIN VarianteProducto v ON v.IdVariante = i.IdVariante
                WHERE v.StockActual < i.Cantidad)
     BEGIN
-        THROW 50001, 'No hay stock suficiente para realizar la venta.', 1;
+        THROW 50200, 'No hay stock suficiente para realizar la venta.', 1;
     END
 
     -- DESCONTAR STOCK
     UPDATE v
     SET v.StockActual = v.StockActual - i.Cantidad
     FROM VarianteProducto v
-    JOIN inserted i ON i.IdVariante = v.IdVariante;
+    JOIN (SELECT IdVariante, SUM(Cantidad) AS Cantidad
+          FROM inserted
+          GROUP BY IdVariante) i ON i.IdVariante = v.IdVariante;
 
     PRINT 'Stock descontado por la venta.';
 
@@ -41,6 +49,7 @@ ON DetalleVenta
 AFTER INSERT
 AS
 BEGIN
+    SET NOCOUNT ON;
 
     UPDATE Venta
     SET Total = (SELECT SUM(dv.Cantidad * dv.PrecioUnitario - dv.Descuento)
@@ -53,22 +62,40 @@ GO
 
 
 -- 3. Al anular una venta: devolver el stock
+--    Unico cambio de estado permitido: CONFIRMADA -> ANULADA.
+--    (Si una venta ANULADA volviera a CONFIRMADA, el stock no se
+--    descontaria de nuevo y quedaria inconsistente.)
 
 CREATE TRIGGER TR_DevolverStockAnulacion
 ON Venta
 AFTER UPDATE
 AS
 BEGIN
+    SET NOCOUNT ON;
 
-    -- Solo las ventas que pasaron de CONFIRMADA a ANULADA
+    -- VALIDAR TRANSICION DE ESTADO
+    IF EXISTS (SELECT 1
+               FROM inserted i
+               JOIN deleted d ON d.IdVenta = i.IdVenta
+               WHERE i.Estado <> d.Estado
+                 AND NOT (d.Estado = 'CONFIRMADA' AND i.Estado = 'ANULADA'))
+    BEGIN
+        THROW 50201, 'Cambio de estado de venta no permitido. Solo se puede pasar de CONFIRMADA a ANULADA.', 1;
+    END
+
+    -- Solo las ventas que pasaron de CONFIRMADA a ANULADA.
+    -- Se agrupa por variante porque un mismo UPDATE puede anular
+    -- varias ventas que contienen la misma variante.
     UPDATE v
-    SET v.StockActual = v.StockActual + dv.Cantidad
+    SET v.StockActual = v.StockActual + x.Cantidad
     FROM VarianteProducto v
-    JOIN DetalleVenta dv ON dv.IdVariante = v.IdVariante
-    JOIN inserted i      ON i.IdVenta     = dv.IdVenta
-    JOIN deleted d       ON d.IdVenta     = i.IdVenta
-    WHERE d.Estado = 'CONFIRMADA'
-      AND i.Estado = 'ANULADA';
+    JOIN (SELECT dv.IdVariante, SUM(dv.Cantidad) AS Cantidad
+          FROM DetalleVenta dv
+          JOIN inserted i ON i.IdVenta = dv.IdVenta
+          JOIN deleted d  ON d.IdVenta = i.IdVenta
+          WHERE d.Estado = 'CONFIRMADA'
+            AND i.Estado = 'ANULADA'
+          GROUP BY dv.IdVariante) x ON x.IdVariante = v.IdVariante;
 
 END;
 GO
@@ -76,22 +103,40 @@ GO
 
 
 -- 4. Al recibir una compra: sumar el stock
+--    Cambios de estado permitidos: PENDIENTE -> RECIBIDA y
+--    PENDIENTE -> ANULADA. (Si una compra RECIBIDA volviera a
+--    PENDIENTE y se recibiera otra vez, el stock se sumaria dos veces.)
 
 CREATE TRIGGER TR_SumarStockCompra
 ON Compra
 AFTER UPDATE
 AS
 BEGIN
+    SET NOCOUNT ON;
 
-    -- Solo las compras que pasaron de PENDIENTE a RECIBIDA
+    -- VALIDAR TRANSICION DE ESTADO
+    IF EXISTS (SELECT 1
+               FROM inserted i
+               JOIN deleted d ON d.IdCompra = i.IdCompra
+               WHERE i.Estado <> d.Estado
+                 AND NOT (d.Estado = 'PENDIENTE' AND i.Estado IN ('RECIBIDA', 'ANULADA')))
+    BEGIN
+        THROW 50202, 'Cambio de estado de compra no permitido. Solo se puede pasar de PENDIENTE a RECIBIDA o ANULADA.', 1;
+    END
+
+    -- Solo las compras que pasaron de PENDIENTE a RECIBIDA.
+    -- Se agrupa por variante porque un mismo UPDATE puede recibir
+    -- varias compras que contienen la misma variante.
     UPDATE v
-    SET v.StockActual = v.StockActual + dc.Cantidad
+    SET v.StockActual = v.StockActual + x.Cantidad
     FROM VarianteProducto v
-    JOIN DetalleCompra dc ON dc.IdVariante = v.IdVariante
-    JOIN inserted i       ON i.IdCompra    = dc.IdCompra
-    JOIN deleted d        ON d.IdCompra    = i.IdCompra
-    WHERE d.Estado = 'PENDIENTE'
-      AND i.Estado = 'RECIBIDA';
+    JOIN (SELECT dc.IdVariante, SUM(dc.Cantidad) AS Cantidad
+          FROM DetalleCompra dc
+          JOIN inserted i ON i.IdCompra = dc.IdCompra
+          JOIN deleted d  ON d.IdCompra = i.IdCompra
+          WHERE d.Estado = 'PENDIENTE'
+            AND i.Estado = 'RECIBIDA'
+          GROUP BY dc.IdVariante) x ON x.IdVariante = v.IdVariante;
 
 END;
 GO
@@ -119,6 +164,7 @@ ON VarianteProducto
 AFTER UPDATE
 AS
 BEGIN
+    SET NOCOUNT ON;
 
     -- Solo las variantes que recien bajaron al minimo
     -- (antes estaban por encima y ahora quedaron igual o por debajo)
@@ -158,6 +204,7 @@ ON VarianteProducto
 AFTER UPDATE
 AS
 BEGIN
+    SET NOCOUNT ON;
 
     -- deleted = precio viejo, inserted = precio nuevo
     INSERT INTO HistorialPrecio (IdVariante, PrecioAnterior, PrecioNuevo)
@@ -178,8 +225,15 @@ ON Venta
 INSTEAD OF DELETE
 AS
 BEGIN
+    SET NOCOUNT ON;
 
-    PRINT 'Las ventas no se pueden borrar. Cambie el Estado a ANULADA.';
+    -- INSTEAD OF: el DELETE nunca se ejecuta. Se lanza un error
+    -- (en lugar de un PRINT) para que quien intento borrar se entere
+    -- de que la operacion no se realizo.
+    IF EXISTS (SELECT 1 FROM deleted)
+    BEGIN
+        THROW 50203, 'Las ventas no se pueden borrar. Use SP_AnularVenta para anularla.', 1;
+    END
 
 END;
 GO
@@ -196,11 +250,17 @@ AFTER INSERT
 AS
 BEGIN
 
+    SET NOCOUNT ON;
+
+    -- Agrupado por variante: un INSERT con varios ajustes de la
+    -- misma variante aplica la suma de todos.
     UPDATE v
     SET v.StockActual = v.StockActual + i.Cantidad
     FROM VarianteProducto v
-    JOIN inserted i ON i.IdVariante = v.IdVariante
-    WHERE i.TipoMovimiento = 'AJUSTE';
+    JOIN (SELECT IdVariante, SUM(Cantidad) AS Cantidad
+          FROM inserted
+          WHERE TipoMovimiento = 'AJUSTE'
+          GROUP BY IdVariante) i ON i.IdVariante = v.IdVariante;
 
 END;
 GO

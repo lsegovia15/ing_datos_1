@@ -159,13 +159,13 @@ Acumula en una tabla variable y devuelve el informe con las `URGENTE` primero, l
 
 | Trigger | Tabla / evento | Qué hace |
 |---|---|---|
-| `TR_DescontarStockVenta` | `DetalleVenta` AFTER INSERT | Si alguna línea supera el `StockActual`, lanza 50001 (cancela el insert). Si no, descuenta `Cantidad` de `VarianteProducto.StockActual`. |
+| `TR_DescontarStockVenta` | `DetalleVenta` AFTER INSERT | Si alguna línea supera el `StockActual`, lanza 50200 (cancela el insert). Si no, descuenta la cantidad (agrupada por variante) de `VarianteProducto.StockActual`. |
 | `TR_CalcularTotalVenta` | `DetalleVenta` AFTER INSERT | Recalcula `Venta.Total = SUM(Cantidad * PrecioUnitario - Descuento)` de las ventas afectadas. |
 | `TR_DevolverStockAnulacion` | `Venta` AFTER UPDATE | Para ventas que pasan de `CONFIRMADA` a `ANULADA`, suma al stock las cantidades de sus líneas. No inserta `MovimientoStock`. |
 | `TR_SumarStockCompra` | `Compra` AFTER UPDATE | Para compras que pasan de `PENDIENTE` a `RECIBIDA`, suma al stock las cantidades de sus líneas. No inserta `MovimientoStock`. |
 | `TR_AvisoStockMinimo` | `VarianteProducto` AFTER UPDATE | Inserta en `AlertaStock` cuando una variante cruza el mínimo (antes `StockActual > StockMinimo`, ahora `<=`). Imprime un aviso. |
 | `TR_HistorialPrecio` | `VarianteProducto` AFTER UPDATE | Inserta en `HistorialPrecio` (precio anterior y nuevo) cuando cambia `PrecioVenta`. |
-| `TR_NoBorrarVenta` | `Venta` INSTEAD OF DELETE | Reemplaza el `DELETE` por un `PRINT`: no borra nada y no devuelve error. |
+| `TR_NoBorrarVenta` | `Venta` INSTEAD OF DELETE | Reemplaza el `DELETE`: no borra nada y lanza el error 50203. |
 | `TR_AplicarAjusteStock` | `MovimientoStock` AFTER INSERT | Para movimientos `AJUSTE`, suma `Cantidad` (con signo) al stock de la variante. Los otros tipos no los toca. |
 
 ### 3.3 Funciones (`funciones.sql`)
@@ -212,8 +212,8 @@ La regla de rol de negocio (`Usuario.IdRol`) se valida dentro de los SPs; los pe
 
 1. **Movimientos de stock.** Solo `SP_AjustarStock` escribe en `MovimientoStock`. Ventas, anulaciones y recepciones modifican `StockActual` directo desde los triggers. El `CHECK` de la tabla admite `ENTRADA`, `SALIDA` y `DEVOLUCION`, pero ningún objeto los inserta.
 2. **`SESSION_CONTEXT`.** `SP_RegistrarVenta`, `SP_AnularVenta` y `SP_RecibirCompra` setean `PermitirDetalleVenta` e `IdUsuarioOperacion`; ningún trigger las lee.
-3. **Código 50001 repetido.** Lo usan `SP_RegistrarVenta` ("detalle vacío") y `TR_DescontarStockVenta` ("sin stock").
-4. **`TR_NoBorrarVenta` no lanza error.** Un `DELETE` sobre `Venta` termina sin borrar y solo imprime un mensaje. No hay trigger equivalente para `Compra`; la protección es el `DENY DELETE`.
+3. **Códigos de triggers.** Los triggers usan el rango 50200–50299 (50200 sin stock, 50201/50202 cambio de estado no permitido, 50203 borrado de venta), separado de los SPs.
+4. **`TR_NoBorrarVenta` lanza error 50203.** No hay trigger equivalente para `Compra`; la protección es el `DENY DELETE`.
 5. **No se valida** que el producto esté activo al vender ni que una venta anulada no pueda reactivarse con un `UPDATE` directo.
 6. **`00_master.sql`** usa `\` como separador de rutas en `:r`, por lo que solo funciona en Windows. No incluye `Subconsultas.sql` ni `ConsultasAvanzadas.sql`.
 7. **Archivos duplicados sin trackear** con sufijo ` 2` (`cursores 2.sql`, `funciones 2.sql`, `ConsultasAvanzadas 2.sql`, `docs/documentacion/* 2.md`, `.gitignore 2`). Parecen copias de macOS y no están en `00_master.sql`.

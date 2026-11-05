@@ -3,19 +3,22 @@ GO
 
 CREATE OR ALTER PROCEDURE SP_RecibirCompra
     @IdCompra  INT,
-    @IdUsuario INT
+    @IdUsuario INT -- Usuario que recibe físicamente la compra
 AS
 BEGIN
+    SET NOCOUNT ON;
+
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
-        -- 1. VALIDACIONES
+        SET XACT_ABORT ON;
+
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario no existe o está inactivo.';
-            RETURN;
-        END
+            THROW 50113, 'El usuario que recibe la compra no existe o está inactivo.', 1;
+        END;
 
+       
         IF NOT EXISTS (
             SELECT 1
             FROM Usuario u
@@ -25,52 +28,59 @@ BEGIN
               AND r.Nombre = 'Administrador'
         )
         BEGIN
-            PRINT 'Error: Solo un usuario Administrador activo puede recibir compras.';
-            RETURN;
-        END
+            THROW 50114, 'Solo un usuario Administrador activo puede recibir compras.', 1;
+        END;
 
+        BEGIN TRANSACTION;
+
+        -- Bloqueo de la compra para que dos recepciones concurrentes no
+        -- ingresen el stock dos veces.
         SELECT @EstadoActual = Estado
-        FROM Compra
+        FROM Compra WITH (UPDLOCK, HOLDLOCK)
         WHERE IdCompra = @IdCompra;
 
         IF @EstadoActual IS NULL
         BEGIN
-            PRINT 'Error: La compra especificada no existe.';
-            RETURN;
-        END
+            THROW 50110, 'La compra especificada no existe.', 1;
+        END;
 
-        IF (@EstadoActual <> 'PENDIENTE')
+        IF @EstadoActual <> 'PENDIENTE'
         BEGIN
-            PRINT 'Error: Solo una compra en estado PENDIENTE puede recibirse.';
-            RETURN;
-        END
+            THROW 50112, 'Solo una compra en estado PENDIENTE puede recibirse.', 1;
+        END;
 
         IF NOT EXISTS (SELECT 1 FROM DetalleCompra WHERE IdCompra = @IdCompra)
         BEGIN
-            PRINT 'Error: No se puede recibir una compra sin líneas de detalle.';
-            RETURN;
-        END
+            THROW 50111, 'No se puede recibir una compra sin líneas de detalle.', 1;
+        END;
 
-        -- 2. TRANSACCIÓN ATÓMICA
-        BEGIN TRANSACTION;
+        -- Guarda quién recibe en el contexto de sesión.
+        -- TR_SumarStockCompra suma el stock al pasar a RECIBIDA.
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
 
-        -- Guardar datos de sesión para triggers
-        EXEC sys.sp_set_session_context @key = N'IdUsuarioOperacion', @value = @IdUsuario;
-
-        -- Al actualizar a RECIBIDA, el trigger TR_SumarStockCompra ingresa las unidades al inventario
         UPDATE Compra
         SET Estado = 'RECIBIDA'
-        WHERE IdCompra = @IdCompra;
+        WHERE IdCompra = @IdCompra
+          AND Estado = 'PENDIENTE';
+
+        IF @@ROWCOUNT = 0
+        BEGIN
+            THROW 50112, 'La compra cambió de estado y no puede recibirse.', 1;
+        END;
+
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
         COMMIT TRANSACTION;
 
         SELECT @IdCompra AS IdCompraRecibida,
-               'Compra recibida y stock sumado exitosamente por el trigger' AS Mensaje;
+               'Compra recibida y stock actualizado exitosamente' AS Mensaje;
 
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
+
+        EXEC sp_set_session_context @key = N'IdUsuarioOperacion', @value = NULL;
 
         THROW;
     END CATCH

@@ -37,8 +37,8 @@ Cada vez que `StockActual` se actualiza, se disparan además `TR_AvisoStockMinim
 ## 1. TR_DescontarStockVenta
 
 - **Evento:** `AFTER INSERT` en `DetalleVenta`.
-- **Condición:** alguna línea pide más unidades que el `StockActual` de su variante. En ese caso lanza el error 50001 ("No hay stock suficiente para realizar la venta.") y se revierte la venta completa.
-- **Acción:** resta `Cantidad` al `StockActual` de cada variante insertada.
+- **Condición:** la cantidad pedida de una variante (sumando todas las filas insertadas) supera su `StockActual`. En ese caso lanza el error 50200 ("No hay stock suficiente para realizar la venta.") y se revierte la venta completa.
+- **Acción:** resta al `StockActual` la cantidad insertada de cada variante, agrupada con `SUM(...) GROUP BY IdVariante`. Así funciona aunque un mismo `INSERT` traiga la misma variante en varias filas (por ejemplo, de dos ventas distintas): el trigger no asume que se ejecuta fila por fila.
 - **Regla:** no se vende más de lo que hay. Funciona también para inserciones que no pasan por el SP.
 
 ## 2. TR_CalcularTotalVenta
@@ -50,16 +50,16 @@ Cada vez que `StockActual` se actualiza, se disparan además `TR_AvisoStockMinim
 ## 3. TR_DevolverStockAnulacion
 
 - **Evento:** `AFTER UPDATE` en `Venta`.
-- **Condición:** la venta pasó de `CONFIRMADA` a `ANULADA`.
-- **Acción:** suma al `StockActual` la `Cantidad` de cada línea de la venta.
-- **Regla:** anular una venta devuelve el stock.
+- **Condición:** la venta pasó de `CONFIRMADA` a `ANULADA`. Cualquier otro cambio de estado (por ejemplo, `ANULADA` → `CONFIRMADA`) se rechaza con el error 50201, porque el stock no se volvería a descontar.
+- **Acción:** suma al `StockActual` la `Cantidad` de las líneas de las ventas anuladas, agrupada por variante (un mismo `UPDATE` puede anular varias ventas con la misma variante).
+- **Regla:** anular una venta devuelve el stock, y una venta anulada no se reactiva.
 
 ## 4. TR_SumarStockCompra
 
 - **Evento:** `AFTER UPDATE` en `Compra`.
-- **Condición:** la compra pasó de `PENDIENTE` a `RECIBIDA`.
-- **Acción:** suma al `StockActual` la `Cantidad` de cada línea de la compra.
-- **Regla:** la mercadería entra al stock cuando se recibe, no cuando se pide.
+- **Condición:** la compra pasó de `PENDIENTE` a `RECIBIDA`. Solo se aceptan los cambios `PENDIENTE` → `RECIBIDA` y `PENDIENTE` → `ANULADA`; cualquier otro (por ejemplo, `RECIBIDA` → `PENDIENTE`, que permitiría recibirla dos veces) se rechaza con el error 50202.
+- **Acción:** suma al `StockActual` la `Cantidad` de las líneas de las compras recibidas, agrupada por variante.
+- **Regla:** la mercadería entra al stock cuando se recibe, no cuando se pide, y una sola vez.
 
 ## 5. TR_AvisoStockMinimo
 
@@ -78,14 +78,14 @@ Cada vez que `StockActual` se actualiza, se disparan además `TR_AvisoStockMinim
 ## 7. TR_NoBorrarVenta
 
 - **Evento:** `INSTEAD OF DELETE` en `Venta`.
-- **Acción:** no borra nada e imprime "Las ventas no se pueden borrar. Cambie el Estado a ANULADA.". No lanza error: el `DELETE` termina sin afectar filas.
+- **Acción:** no borra nada y lanza el error 50203 ("Las ventas no se pueden borrar. Use SP_AnularVenta para anularla."). Se usa `THROW` y no `PRINT` para que quien ejecutó el `DELETE` se entere de que la operación no se realizó.
 - **Regla:** las ventas se anulan, no se borran. Al ser `INSTEAD OF`, corta el borrado antes de los `ON DELETE CASCADE` hacia `DetalleVenta`. Además, `seguridad.sql` deniega `DELETE` sobre `Venta`, `DetalleVenta`, `Compra` y `DetalleCompra`.
 
 ## 8. TR_AplicarAjusteStock
 
 - **Evento:** `AFTER INSERT` en `MovimientoStock`.
 - **Condición:** solo actúa sobre movimientos de tipo `AJUSTE`.
-- **Acción:** suma `Cantidad` (con signo) al `StockActual` de la variante.
+- **Acción:** suma `Cantidad` (con signo) al `StockActual` de la variante, agrupada por variante.
 - **Regla:** `SP_AjustarStock` inserta la diferencia entre el stock contado y el del sistema, y este trigger la aplica.
 
 ---
@@ -100,4 +100,4 @@ Estas reglas se validan solo en los stored procedures:
 
 Un `UPDATE` o `INSERT` directo sobre las tablas saltea esas validaciones, por eso `seguridad.sql` restringe el acceso directo del vendedor.
 
-Estas no se validan en ningún objeto (ni SP ni trigger): vender una variante de un producto inactivo, reactivar una venta anulada con un `UPDATE` directo, o modificar y borrar líneas de venta y movimientos de stock por fuera de los permisos.
+Estas no se validan en ningún objeto (ni SP ni trigger): vender una variante de un producto inactivo, o modificar y borrar líneas de venta y movimientos de stock por fuera de los permisos.
