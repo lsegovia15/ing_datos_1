@@ -219,15 +219,3 @@ Alertas de reposición. Las carga el trigger `TR_AvisoStockMinimo`.
 | Fecha | DATETIME | No | `GETDATE()` | | Fecha de la alerta |
 | Atendida | INT | No | 0 | `IN (0, 1)` | 0 = pendiente, 1 = atendida |
 
----
-
-## Tipo de tabla: TipoDetalleVenta
-
-Script: `sql/sp/SPs.sql`. Es el parámetro con el que `SP_RegistrarVenta` recibe las líneas de la venta.
-
-| Columna | Tipo | Nulo | Default | Descripción |
-|---|---|---|---|---|
-| IdVariante | INT | No | | Variante a vender |
-| Cantidad | INT | No | | Unidades |
-| PrecioUnitario | DECIMAL(12,2) | No | | Precio por unidad |
-| Descuento | DECIMAL(12,2) | No | 0 | Descuento de la línea, en pesos |

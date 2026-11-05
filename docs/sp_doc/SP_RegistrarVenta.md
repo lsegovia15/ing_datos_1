@@ -1,26 +1,24 @@
 ## Procedimiento Almacenado: SP_RegistrarVenta
 
-**Descripción:** 
-Registra una venta completa (cabecera y detalle) de forma transaccional. Valida stock y consistencia de datos antes de guardar. El descuento de `StockActual` y el recálculo del total los realizan los triggers `TR_DescontarStockVenta` y `TR_CalcularTotalVenta`.
-
-**Tecnología utilizada:**
-Se utiliza un **Table-Valued Parameter (TVP)** (`TipoDetalleVenta`) para enviar el carrito de compras. Esto evita el uso de strings dinámicos o JSON, manteniendo la integridad de los tipos de datos y permitiendo procesar múltiples líneas en una sola llamada.
+**Descripción:**
+Registra la venta de un producto (una variante) de forma transaccional: cabecera en `Venta` y una línea en `DetalleVenta`. El precio se toma de `VarianteProducto.PrecioVenta`. El descuento de `StockActual` y el cálculo del total los hacen los triggers `TR_DescontarStockVenta` y `TR_CalcularTotalVenta`.
 
 **Parámetros:**
-- `@IdCliente` (INT, opcional): ID del cliente. Si es NULL, se asume consumidor final.
-- `@IdUsuario` (INT, obligatorio): ID del vendedor.
+- `@IdCliente` (INT, opcional): cliente. Si es NULL, se asume consumidor final.
+- `@IdUsuario` (INT, obligatorio): usuario que registra la venta.
 - `@MedioPago` (VARCHAR(20), obligatorio): EFECTIVO, DEBITO, CREDITO o TRANSFERENCIA.
-- `@Detalle` (TipoDetalleVenta READONLY, obligatorio): Tabla con las columnas IdVariante, Cantidad, PrecioUnitario y Descuento.
+- `@IdVariante` (INT, obligatorio): variante vendida.
+- `@Cantidad` (INT, obligatorio): unidades.
+- `@Descuento` (DECIMAL(12,2), opcional, 0): descuento en pesos.
 
-**Roles:** pueden ejecutarlo usuarios activos con rol de aplicación `Vendedor` o `Administrador`. Se define explícitamente que el `Administrador` también puede registrar ventas. El permiso de motor `EXECUTE` se concede a `rol_vendedor` y a `rol_administrador`.
+**Roles:** usuarios activos con rol de aplicación `Vendedor` o `Administrador`. El permiso de motor `EXECUTE` se otorga a `rol_vendedor` y `rol_administrador`.
 
-**Control de Errores y Validaciones:**
-1. Uso de `TRY...CATCH` con `THROW;` para propagar errores.
-2. Validación de existencia y estado activo del Usuario (error `50002`). Un usuario inactivo se rechaza antes de abrir la transacción.
-3. Validación del rol de aplicación: solo `Administrador` o `Vendedor` activo (error `50007`).
-4. Validación de existencia del Cliente cuando se especifica.
-5. Validación de duplicados en el carrito (no se puede mandar la misma variante dos veces).
-6. Validación de Stock: se cruza la tabla de detalle con `VarianteProducto` para verificar que `StockActual >= Cantidad`. Si falla, se genera un mensaje indicando el SKU exacto que causó el problema. Si dos ventas compiten por la misma unidad, `TR_DescontarStockVenta` rechaza la segunda dentro de la transacción (error `50001`).
-7. Uso de Transacciones (`BEGIN TRAN` / `COMMIT` / `ROLLBACK`) para asegurar atomicidad.
-8. El `IdVenta` se genera con `MAX + 1` bloqueado (`UPDLOCK, HOLDLOCK`) para evitar IDs duplicados entre ventas simultáneas.
-9. El SP inserta la cabecera y el detalle. `TR_DescontarStockVenta` descuenta el stock y `TR_CalcularTotalVenta` recalcula el `Total`.
+**Control de errores y validaciones:**
+1. `TRY...CATCH`; en el `CATCH`, `ROLLBACK` si hay transacción abierta y `THROW;` para devolver el error.
+2. Cantidad mayor a cero (50001).
+3. Usuario existente y activo (50002) con rol `Administrador` o `Vendedor` (50007).
+4. Cliente existente cuando se informa (50003).
+5. Medio de pago válido (50004).
+6. Variante existente (50005) y stock suficiente (50006).
+7. Descuento entre 0 y el importe (50008).
+8. `BEGIN TRANSACTION` / `COMMIT`: `IdVenta` se genera con `MAX + 1` y se insertan cabecera y detalle juntos.
