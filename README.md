@@ -6,7 +6,7 @@
 
 **Dominio del proyecto:** Gestión integral de un emprendimiento dedicado a la comercialización de indumentaria urbana, incluyendo productos como remeras, buzos, pantalones, bermudas y otros artículos de ropa.
 
-El sistema estará orientado a centralizar y organizar la información relacionada con los productos, sus variantes, el stock, las compras, las ventas, los proveedores y los usuarios del negocio.
+El sistema centraliza y organiza la información relacionada con los productos, sus variantes, el stock, las compras, las ventas, los proveedores y los usuarios del negocio.
 
 ## 2. Problema a resolver
 
@@ -21,15 +21,15 @@ Entre las principales dificultades se encuentran:
 - Mantener actualizada la cantidad de productos disponibles.
 - Centralizar la información del negocio en un único sistema.
 
-La base de datos propuesta permitirá centralizar esta información y mantenerla organizada, facilitando la gestión diaria del local y mejorando el control sobre el stock, las compras y las ventas.
+La base de datos centraliza esta información y la mantiene organizada, lo que facilita la gestión diaria del local y mejora el control sobre el stock, las compras y las ventas.
 
 ## 3. Actores principales
 
-Los principales actores que interactuarán con el sistema serán:
+Los principales actores del sistema son:
 
 ### Administrador
 
-Será el usuario con mayor nivel de permisos dentro del sistema. Podrá:
+Es el usuario con mayor nivel de permisos dentro del sistema. Puede:
 
 - Gestionar productos, categorías, talles y colores.
 - Administrar proveedores.
@@ -41,7 +41,7 @@ Será el usuario con mayor nivel de permisos dentro del sistema. Podrá:
 
 ### Vendedor
 
-Tendrá permisos orientados principalmente a la operación diaria del local. Podrá:
+Tiene permisos orientados principalmente a la operación diaria del local. Puede:
 
 - Consultar los productos disponibles.
 - Consultar el stock.
@@ -51,13 +51,13 @@ Tendrá permisos orientados principalmente a la operación diaria del local. Pod
 
 ### Proveedor
 
-Los proveedores serán registrados en el sistema para poder asociarlos con las compras de mercadería realizadas por el local.
+Los proveedores se registran en el sistema para asociarlos con las compras de mercadería realizadas por el local.
 
-La gestión de los proveedores estará a cargo de los usuarios autorizados del sistema.
+La gestión de los proveedores está a cargo de los usuarios autorizados del sistema.
 
 ## 4. Alcance del sistema
 
-El sistema permitirá gestionar y almacenar información relacionada con:
+El sistema gestiona y almacena información relacionada con:
 
 - **Productos:** nombre, descripción, precio y demás datos relevantes.
 - **Categorías:** clasificación de los productos según su tipo.
@@ -74,7 +74,7 @@ El sistema permitirá gestionar y almacenar información relacionada con:
 - **Usuarios:** cuentas de acceso al sistema.
 - **Roles y permisos:** diferenciación de las operaciones que pueden realizar los distintos tipos de usuario.
 
-Además, se podrán realizar consultas relacionadas con el estado del stock, las ventas realizadas y las compras efectuadas.
+Además, se realizan consultas relacionadas con el estado del stock, las ventas realizadas y las compras efectuadas.
 
 ### Fuera del alcance
 
@@ -93,32 +93,32 @@ La propuesta contempla distintos recursos que permiten cumplir con los requerimi
 
 ### Triggers
 
-Se implementarán **triggers** para automatizar determinadas operaciones sobre la base de datos.
+Se implementan **triggers** para automatizar determinadas operaciones sobre la base de datos.
 
-Por ejemplo, al registrar una venta, se podrá actualizar automáticamente el stock correspondiente, evitando que el usuario tenga que modificarlo manualmente.
+Por ejemplo, al registrar una venta, se actualiza automáticamente el stock correspondiente, evitando que el usuario tenga que modificarlo manualmente.
 
-También podrán utilizarse para controlar determinadas condiciones y mantener la integridad de la información.
+También se utilizan para controlar determinadas condiciones y mantener la integridad de la información.
 
 ### Procedimientos almacenados
 
-Se utilizarán **procedimientos almacenados** para encapsular operaciones frecuentes o que requieran varias modificaciones sobre la base de datos.
+Se utilizan **procedimientos almacenados** para encapsular operaciones frecuentes o que requieran varias modificaciones sobre la base de datos.
 
-Por ejemplo, se podrá implementar un procedimiento para registrar una venta junto con sus correspondientes detalles y actualizar el stock de los productos involucrados.
+Por ejemplo, hay procedimientos para registrar una venta junto con su detalle, registrar y recibir compras, anular ventas y ajustar stock.
 
 ### Cursores
 
-Se podrán utilizar **cursores** en aquellas operaciones que requieran recorrer registros de manera secuencial para realizar controles, cálculos o generar información a partir de varios registros.
+Se utilizan **cursores** en aquellas operaciones que requieran recorrer registros de manera secuencial para realizar controles, cálculos o generar información a partir de varios registros.
 
-Su utilización estará orientada a resolver casos en los que el procesamiento registro por registro resulte necesario.
+Su utilización está orientada a resolver casos en los que el procesamiento registro por registro resulta necesario, como el informe de reposición de stock.
 
 ### Roles y permisos
 
-El sistema contará con diferentes **roles de usuario**, principalmente `Administrador` y `Vendedor`, con permisos diferenciados.
+El sistema cuenta con diferentes **roles de usuario**, principalmente `Administrador` y `Vendedor`, con permisos diferenciados.
 
-Esto permitirá restringir determinadas operaciones según el tipo de usuario. Por ejemplo, un vendedor podrá registrar ventas, pero no tendrá permisos para modificar la configuración general del sistema o administrar usuarios.
+Esto permite restringir determinadas operaciones según el tipo de usuario. Por ejemplo, un vendedor puede registrar ventas, pero no tiene permisos para modificar la configuración general del sistema o administrar usuarios.
 
 ## 6. Objetivo general
 
-El objetivo principal del proyecto es desarrollar una base de datos que permita gestionar de manera centralizada la información de un local de indumentaria, facilitando el control de productos, variantes, stock, compras y ventas.
+El proyecto desarrolló una base de datos que gestiona de manera centralizada la información de un local de indumentaria, facilitando el control de productos, variantes, stock, compras y ventas.
 
 La implementación de reglas de integridad, automatizaciones y permisos permitirá mantener la información organizada y reducir errores en las operaciones habituales del negocio.
