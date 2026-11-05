@@ -9,7 +9,9 @@ El diagrama usa notación de "pata de gallo" (*crow's foot*). Cada extremo de un
 | `\|{` | Uno o muchos (participación obligatoria) |
 | `o{` | Cero o muchos (participación opcional) |
 
-Existe además una versión en notación de Chen del mismo modelo: [`DER.png`](../DER.png). Tiene las mismas 18 entidades y 21 relaciones, con los mismos nombres de relación y cardinalidades 1:N, y subraya las claves primarias, pero no marca las claves únicas (UK), la participación opcional ni la exclusión entre `IdCompra` e `IdVenta` en `MovimientoStock` (`CK_Mov_Origen`). Esos tres puntos se leen en este documento.
+![DER de SIAM](../DER.png)
+
+La imagen `docs/DER.png` es el render del diagrama de abajo. Si cambia el modelo, se actualiza el bloque Mermaid y se vuelve a exportar la imagen.
 
 ```mermaid
 erDiagram
