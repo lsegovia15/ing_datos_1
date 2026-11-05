@@ -14,6 +14,7 @@ WHERE IdCliente IN(
     INNER JOIN Producto P on vp.IdProducto = p.IdProducto
     INNER JOIN Categoria c ON p.IdCategoria = c.IdCategoria
     WHERE c.Nombre = 'Buzos'
+      AND v.Estado = 'CONFIRMADA'   -- una venta anulada no cuenta como compra
 );
 
 -- Subconsultas con NOT EXISTS: Productos que nunca han tenido ventas registradas
@@ -23,7 +24,9 @@ WHERE NOT EXISTS(
     SELECT 1
     FROM VarianteProducto vp
     INNER JOIN DetalleVenta dv ON vp.IdVariante = dv.IdVariante
+    INNER JOIN Venta v ON v.IdVenta = dv.IdVenta
     WHERE vp.IdProducto = p.IdProducto
+      AND v.Estado = 'CONFIRMADA'   -- si solo tuvo ventas anuladas, cuenta como "nunca vendido"
 );
 -- 2.3 Subconsulta con ALL (o > ANY): Variantes cuyo precio es mayor a TODOS los precios de la marca 'Nangallery'
 SELECT vp.SKU, vp.PrecioVenta 

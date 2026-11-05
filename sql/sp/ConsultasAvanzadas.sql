@@ -90,7 +90,9 @@ WHERE NOT EXISTS (
     SELECT 1 
     FROM VarianteProducto vp
     INNER JOIN DetalleVenta dv ON vp.IdVariante = dv.IdVariante
+    INNER JOIN Venta v ON v.IdVenta = dv.IdVenta
     WHERE vp.IdProducto = p.IdProducto -- Relaciona las variantes con el producto.
+      AND v.Estado = 'CONFIRMADA'      -- Las ventas anuladas no cuentan.
 );
 -- Subconsulta con ALL
 -- Busca variantes más caras que todos los productos de la marca Nangallery.

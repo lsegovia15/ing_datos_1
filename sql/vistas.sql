@@ -73,7 +73,7 @@ GO
 -- Vista 4: Categorías más vendidas por segmento
 -- Justifica la entidad Segmento a nivel VarianteProducto.
 
-CREATE VIEW vw_CategoriasMasVendidasPorSegmento AS
+CREATE OR ALTER VIEW vw_CategoriasMasVendidasPorSegmento AS
 SELECT
     s.IdSegmento,
     s.Nombre          AS Segmento,

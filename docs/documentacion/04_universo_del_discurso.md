@@ -57,10 +57,10 @@ Se detallan en la sección [5. Reglas de negocio](05_reglas_de_negocio.md).
 4. Si el pedido se cancela, la marca como **ANULADA** y el stock no cambia.
 
 ### Venta
-1. El vendedor arma la venta con una o más variantes, cantidades, precios y descuentos.
+1. El vendedor registra la venta de un producto: la variante, la cantidad y, si corresponde, un descuento. El precio es el de la variante en el catálogo.
 2. Indica el medio de pago y, si corresponde, el cliente. Si no hay cliente, la venta es a consumidor final.
-3. El sistema verifica que haya stock de todo y registra la venta completa: cabecera, detalle y descuento del stock.
-4. Si falta stock de alguna línea, no se registra nada.
+3. El sistema verifica que haya stock y registra la venta completa: cabecera, detalle y descuento del stock.
+4. Si falta stock, no se registra nada.
 
 ### Anulación de una venta
 1. El administrador anula la venta indicando quién autoriza.
