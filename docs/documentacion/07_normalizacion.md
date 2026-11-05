@@ -32,6 +32,70 @@ Esta planilla tiene todos los problemas que la normalización resuelve:
 
 También se separó el nombre del cliente en `Nombre` y `Apellido`, para que cada atributo sea atómico.
 
+## Dependencias funcionales
+
+Una dependencia funcional `X → Y` significa que cada valor de `X` está asociado a un único valor de `Y`. No se deducen de los datos de ejemplo: salen de las reglas de negocio del local.
+
+### Planilla de ventas
+
+Se toma la planilla en 1FN: `(NroVenta, NroLinea, Fecha, Nombre, Apellido, DNI, Vendedor, MedioPago, Producto, Categoria, Marca, Talle, Color, Cantidad, Precio)`.
+
+| DF | Dependencia | Justificación (regla de negocio) |
+|---|---|---|
+| DF1 | `NroVenta → Fecha, DNI, Vendedor, MedioPago` | Una venta se hace en una fecha, a un solo cliente, la registra un solo vendedor y se paga con un único medio de pago. |
+| DF2 | `DNI → Nombre, Apellido` | El DNI identifica a una persona: dos clientes no pueden tener el mismo. En una venta a consumidor final no hay DNI, así que esta dependencia no se aplica. |
+| DF3 | `NroVenta, NroLinea → Producto, Talle, Color, Cantidad, Precio` | Cada línea de una venta corresponde a un solo producto en un talle y un color, con su cantidad y el precio al que se vendió. |
+| DF4 | `Producto → Categoria, Marca` | Cada producto pertenece a una sola categoría y es de una sola marca. |
+| DF5 | `NroVenta, Producto, Talle, Color → NroLinea` | En una venta, el mismo producto en el mismo talle y color no se carga en dos líneas: si el cliente lleva dos unidades, se registra una línea con `Cantidad = 2`. |
+
+**Lo que no es dependencia funcional**, y por qué:
+
+- `Producto ↛ Talle, Color`: un mismo producto se vende en varios talles y colores.
+- `Producto, Talle, Color ↛ Precio`: el precio de la planilla es el precio al que se vendió **en esa línea**. El mismo artículo puede venderse a otro precio en otra fecha o con otra promoción.
+- `DNI ↛ Vendedor, MedioPago`: el mismo cliente puede ser atendido por otro vendedor y pagar con otro medio en otra compra.
+- `Fecha ↛ NroVenta`: en un mismo día hay muchas ventas.
+
+### Planilla de compras
+
+Se toma la planilla de compras en 1FN: `(NroCompra, NroLinea, Fecha, CUIT, RazonSocial, Telefono, Email, Direccion, NroComprobante, Estado, Responsable, Producto, Talle, Color, Cantidad, CostoUnitario)`.
+
+| DF | Dependencia | Justificación (regla de negocio) |
+|---|---|---|
+| DFC1 | `NroCompra → Fecha, CUIT, NroComprobante, Estado, Responsable` | Una compra se hace a un solo proveedor, tiene un comprobante, un estado y la registra un usuario. |
+| DFC2 | `CUIT → RazonSocial, Telefono, Email, Direccion` | El CUIT identifica a un proveedor. |
+| DFC3 | `NroCompra, NroLinea → Producto, Talle, Color, Cantidad, CostoUnitario` | Cada línea de la compra es un artículo, con su cantidad y su costo. |
+| DFC4 | `NroCompra, Producto, Talle, Color → NroLinea` | El mismo artículo no se repite dentro de una compra. |
+
+### Modelo final
+
+Dependencias funcionales de cada tabla de `init_db.sql` y `siam_triggers.sql`:
+
+| Tabla | Dependencias funcionales |
+|---|---|
+| Rol | `IdRol → Nombre, Descripcion` · `Nombre → IdRol` |
+| Usuario | `IdUsuario → IdRol, NombreUsuario, Email, Contrasena, Nombre, Apellido, Activo, FechaAlta` · `NombreUsuario → IdUsuario` · `Email → IdUsuario` |
+| Cliente | `IdCliente → Nombre, Apellido, DNI, Email, Telefono, Direccion` · `DNI → IdCliente` |
+| Categoria | `IdCategoria → Nombre, Descripcion` · `Nombre → IdCategoria` |
+| Marca | `IdMarca → Nombre` · `Nombre → IdMarca` |
+| Segmento | `IdSegmento → Nombre` · `Nombre → IdSegmento` |
+| Talle | `IdTalle → Descripcion` · `Descripcion → IdTalle` |
+| Color | `IdColor → Nombre` · `Nombre → IdColor` |
+| Producto | `IdProducto → IdCategoria, IdMarca, Nombre, Descripcion, PrecioBase, Activo` |
+| VarianteProducto | `IdVariante → IdProducto, IdSegmento, IdTalle, IdColor, SKU, PrecioVenta, StockActual, StockMinimo` · `SKU → IdVariante` · `IdProducto, IdSegmento, IdTalle, IdColor → IdVariante` |
+| Proveedor | `IdProveedor → RazonSocial, CUIT, Telefono, Email, Direccion` · `CUIT → IdProveedor` |
+| Compra | `IdCompra → IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado` |
+| DetalleCompra | `IdCompra, NroLinea → IdVariante, Cantidad, CostoUnitario` · `IdCompra, IdVariante → NroLinea` |
+| Venta | `IdVenta → IdCliente, IdUsuario, Fecha, MedioPago, Total, Estado` |
+| DetalleVenta | `IdVenta, NroLinea → IdVariante, Cantidad, PrecioUnitario, Descuento` · `IdVenta, IdVariante → NroLinea` |
+| MovimientoStock | `IdMovimiento → IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, IdCompra, IdVenta, Observacion` |
+| HistorialPrecio | `IdHistorial → IdVariante, PrecioAnterior, PrecioNuevo, Fecha` |
+| AlertaStock | `IdAlerta → IdVariante, StockActual, StockMinimo, Fecha, Atendida` |
+
+Aclaraciones:
+
+- En `Producto`, `Nombre` no determina al producto: dos marcas pueden tener productos con el mismo nombre.
+- En `AlertaStock`, `StockActual` y `StockMinimo` no dependen de `IdVariante`: son una foto del momento de la alerta, y la misma variante puede tener varias alertas con valores distintos.
+
 ## Segunda Forma Normal (2FN)
 
 **Regla:** estar en 1FN y que todo atributo no clave dependa de la **clave completa**, no de una parte.
