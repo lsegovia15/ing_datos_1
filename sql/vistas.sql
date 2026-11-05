@@ -70,47 +70,41 @@ WHERE p.Activo = 1 AND p.PrecioBase > (
 );
 GO
 
-
-
 -- Vista 4: Categorías más vendidas por segmento
 -- Justifica la entidad Segmento a nivel VarianteProducto.
 
-CREATE OR ALTER VIEW vw_CategoriasMasVendidasPorSegmento AS
-WITH VentasPorCategoria AS
-(
-    SELECT
-        s.IdSegmento,
-        s.Nombre          AS Segmento,
-        c.IdCategoria,
-        c.Nombre          AS Categoria,
-        SUM(dv.Cantidad)  AS UnidadesVendidas,
-        SUM(dv.Cantidad * dv.PrecioUnitario - dv.Descuento) AS TotalVendido
-    FROM DetalleVenta dv
-    INNER JOIN Venta v            ON v.IdVenta = dv.IdVenta
-    INNER JOIN VarianteProducto vp ON vp.IdVariante = dv.IdVariante
-    INNER JOIN Producto p         ON p.IdProducto = vp.IdProducto
-    INNER JOIN Categoria c        ON c.IdCategoria = p.IdCategoria
-    INNER JOIN Segmento s         ON s.IdSegmento = vp.IdSegmento
-    WHERE v.Estado = 'CONFIRMADA'
-    GROUP BY s.IdSegmento, s.Nombre, c.IdCategoria, c.Nombre
-),
-Ranking AS
-(
-    SELECT *,
-           RANK() OVER (
-               PARTITION BY IdSegmento
-               ORDER BY UnidadesVendidas DESC, TotalVendido DESC
-           ) AS Posicion
-    FROM VentasPorCategoria
-)
+CREATE VIEW vw_CategoriasMasVendidasPorSegmento AS
 SELECT
-    IdSegmento,
-    Segmento,
-    IdCategoria,
-    Categoria,
-    UnidadesVendidas,
-    TotalVendido,
-    Posicion
-FROM Ranking
-WHERE Posicion = 1;
+    s.IdSegmento,
+    s.Nombre          AS Segmento,
+    c.IdCategoria,
+    c.Nombre          AS Categoria,
+    SUM(dv.Cantidad)  AS UnidadesVendidas,
+    SUM(dv.Cantidad * dv.PrecioUnitario - dv.Descuento) AS TotalVendido,
+    1                 AS Posicion
+FROM DetalleVenta dv
+INNER JOIN Venta v             ON v.IdVenta = dv.IdVenta
+INNER JOIN VarianteProducto vp ON vp.IdVariante = dv.IdVariante
+INNER JOIN Producto p          ON p.IdProducto = vp.IdProducto
+INNER JOIN Categoria c         ON c.IdCategoria = p.IdCategoria
+INNER JOIN Segmento s          ON s.IdSegmento = vp.IdSegmento
+WHERE v.Estado = 'CONFIRMADA'
+GROUP BY s.IdSegmento, s.Nombre, c.IdCategoria, c.Nombre
+HAVING SUM(dv.Cantidad) = (
+    -- Subconsulta correlacionada: calcula la máxima cantidad vendida para ese mismo segmento
+    SELECT MAX(Totales.UnidadesPorCat)
+    FROM (
+        SELECT 
+            vp2.IdSegmento,
+            p2.IdCategoria,
+            SUM(dv2.Cantidad) AS UnidadesPorCat
+        FROM DetalleVenta dv2
+        INNER JOIN Venta v2             ON v2.IdVenta = dv2.IdVenta
+        INNER JOIN VarianteProducto vp2 ON vp2.IdVariante = dv2.IdVariante
+        INNER JOIN Producto p2          ON p2.IdProducto = vp2.IdProducto
+        WHERE v2.Estado = 'CONFIRMADA'
+        GROUP BY vp2.IdSegmento, p2.IdCategoria
+    ) AS Totales
+    WHERE Totales.IdSegmento = s.IdSegmento
+);
 GO
