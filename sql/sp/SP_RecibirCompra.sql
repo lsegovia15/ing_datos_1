@@ -18,8 +18,7 @@ BEGIN
             THROW 50113, 'El usuario que recibe la compra no existe o está inactivo.', 1;
         END;
 
-        -- Defensa en profundidad: la recepción es una operación administrativa
-        -- y se valida también a nivel lógico, además del permiso EXECUTE.
+       
         IF NOT EXISTS (
             SELECT 1
             FROM Usuario u

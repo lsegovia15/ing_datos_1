@@ -1,15 +1,3 @@
--- ============================================================
--- SIAM - Ejecución completa y ordenada
--- Ejecutar con SQLCMD desde la carpeta sql:
---   cd sql
---   sqlcmd -S localhost -E -C -b -i 00_master.sql
---
--- En SSMS: habilitar "SQLCMD Mode" y abrir este archivo.
--- Requiere permisos de sysadmin para crear la base y los logins.
---
--- ADVERTENCIA: init_db.sql elimina y recrea la base SIAM si ya existe.
--- No ejecutar sobre una base con datos reales sin backup previo.
--- ============================================================
 
 :on error exit
 :setvar Base "."

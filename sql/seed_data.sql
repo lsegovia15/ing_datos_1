@@ -3,21 +3,15 @@ GO
 
 SET NOCOUNT ON;
 
--- ============================================================
--- SIAM - Datos de prueba
--- Ejecutar después de init_db, triggers, funciones, vistas,
--- tipos TVP y stored procedures.
--- ============================================================
-
 IF EXISTS (SELECT 1 FROM dbo.Rol)
 BEGIN
     PRINT 'Seed ya aplicado: la tabla Rol contiene datos. No se vuelve a ejecutar.';
     RETURN;
 END;
 
--- ============================================================
+
 -- 1. ROLES Y USUARIOS DE APLICACIÓN
--- ============================================================
+
 INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
     (1, 'Administrador', 'Acceso total: catálogo, compras, stock, ventas, anulaciones y seguridad.'),
     (2, 'Vendedor',      'Registra ventas y consulta catálogo, stock y reportes de reposición.');
@@ -38,9 +32,9 @@ VALUES
         CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Inactivo123!'), 2),
         'Diego', 'Inactivo',       0);
 
--- ============================================================
+
 -- 2. CATÁLOGOS
--- ============================================================
+
 INSERT INTO dbo.Categoria (IdCategoria, Nombre, Descripcion) VALUES
     (1, 'Remeras',   'Remeras manga corta y oversize'),
     (2, 'Buzos',     'Buzos y hoodies'),
@@ -69,11 +63,11 @@ INSERT INTO dbo.Color (IdColor, Nombre) VALUES
     (1, 'Negro'), (2, 'Blanco'), (3, 'Gris'), (4, 'Azul'),
     (5, 'Celeste'), (6, 'Beige'), (7, 'Rojo');
 
--- ============================================================
+
 -- 3. PRODUCTOS Y VARIANTES
 -- Stock inicial 0: el stock real ingresa con la compra recibida.
 -- Así los movimientos de ENTRADA quedan coherentes.
--- ============================================================
+
 INSERT INTO dbo.Producto (IdProducto, IdCategoria, IdMarca, Nombre, Descripcion, PrecioBase, Activo) VALUES
     (1, 1, 1, 'Remera Oversize Graffiti', 'Remera de algodón con estampa',      15000.00, 1),
     (2, 2, 2, 'Buzo Hoodie Classic',      'Buzo con capucha y bolsillo canguro', 25000.00, 1),
@@ -99,9 +93,9 @@ VALUES
     (11, 6, 3, 1, 2, 'REM-BAS-S-BLA',   10000.00, 0, 5),
     (12, 6, 4, 1, 7, 'REM-BAS-S-ROJ',   10000.00, 0, 5);
 
--- ============================================================
+
 -- 4. PROVEEDORES Y CLIENTES
--- ============================================================
+
 INSERT INTO dbo.Proveedor (IdProveedor, RazonSocial, CUIT, Telefono, Email, Direccion) VALUES
     (1, 'Distribuidora Norte S.A.', '30-71234567-8', '011-4555-1001', 'ventas@norte.com', 'Av. Cabildo 1234'),
     (2, 'Textil Sur S.R.L.',        '30-70987654-3', '011-4555-1002', 'pedidos@textilsur.com', 'San Juan 456'),
@@ -112,9 +106,9 @@ INSERT INTO dbo.Cliente (IdCliente, Nombre, Apellido, DNI, Telefono, Email, Dire
     (2, 'Martín', 'Pérez',    '28999888', '11-5555-2002', 'martin.perez@mail.com', 'Belgrano 222'),
     (3, 'Sofía',  'Rodríguez','33444555', '11-5555-2003', 'sofia.rodriguez@mail.com','Caballito 333');
 
--- ============================================================
+
 -- 5. COMPRAS
--- ============================================================
+
 DECLARE @dc TipoDetalleCompra;
 DECLARE @dv TipoDetalleVenta;
 DECLARE @dcVacio TipoDetalleCompra;
@@ -180,9 +174,9 @@ UPDATE dbo.Compra
 SET Estado = 'ANULADA'
 WHERE IdCompra = 3;
 
--- ============================================================
+
 -- 6. VENTAS
--- ============================================================
+
 -- Venta 1: CONFIRMADA. Vendedor 1.
 INSERT INTO @dv (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
     (1, 2, 18000.00, 0),
@@ -234,9 +228,9 @@ EXEC dbo.SP_RegistrarVenta
 
 EXEC dbo.SP_AnularVenta @IdVenta = 4, @IdUsuario = 1;
 
--- ============================================================
+
 -- 7. AJUSTES DE STOCK
--- ============================================================
+
 -- Ajuste real: la variante 1 pasa de 18 a 17 (movimiento AJUSTE -1).
 EXEC dbo.SP_AjustarStock
     @IdVariante = 1,
@@ -253,10 +247,10 @@ EXEC dbo.SP_AjustarStock
     @IdUsuario = 1,
     @Observacion = 'Prueba de ajuste sin diferencia';
 
--- ============================================================
+
 -- 8. CASOS BORDE / PRUEBAS DE ERROR
 -- Los errores se capturan para que el seed pueda terminar.
--- ============================================================
+
 
 -- 8.1 Venta sin stock: variante 3 tiene stock 0.
 INSERT INTO @dvSinStock (IdVariante, Cantidad, PrecioUnitario, Descuento) VALUES
@@ -385,9 +379,8 @@ BEGIN CATCH
     SELECT 'VENTA_USUARIO_INACTIVO' AS Caso, ERROR_NUMBER() AS ErrorNumber, ERROR_MESSAGE() AS ErrorMessage;
 END CATCH;
 
--- ============================================================
 -- 9. RESUMEN DEL SEED
--- ============================================================
+
 SELECT 'Roles' AS Tabla, COUNT(*) AS Cantidad FROM dbo.Rol
 UNION ALL SELECT 'Usuarios', COUNT(*) FROM dbo.Usuario
 UNION ALL SELECT 'Productos', COUNT(*) FROM dbo.Producto

@@ -1,11 +1,5 @@
--- ============================================================
+
 -- SIAM - Seguridad de base de datos
--- Ejecutar como sysadmin, después de crear los objetos y el seed.
---
--- Importante: los roles/usuarios de SQL Server de este script son
--- distintos de las tablas de aplicación Rol/Usuario. Aquí se controla
--- el acceso al motor; Rol/Usuario identifican al empleado en el negocio.
--- ============================================================
 
 USE master;
 GO
@@ -32,9 +26,9 @@ GO
 USE SIAM;
 GO
 
--- ============================================================
+
 -- 1. ROLES DE BASE DE DATOS
--- ============================================================
+
 IF DATABASE_PRINCIPAL_ID(N'rol_administrador') IS NULL
     CREATE ROLE rol_administrador AUTHORIZATION dbo;
 GO
@@ -43,9 +37,9 @@ IF DATABASE_PRINCIPAL_ID(N'rol_vendedor') IS NULL
     CREATE ROLE rol_vendedor AUTHORIZATION dbo;
 GO
 
--- ============================================================
+
 -- 2. USUARIOS DE BASE DE DATOS
--- ============================================================
+
 IF DATABASE_PRINCIPAL_ID(N'usr_admin') IS NULL
     CREATE USER usr_admin FOR LOGIN login_admin_siam;
 GO
@@ -75,19 +69,19 @@ IF NOT EXISTS (
     ALTER ROLE rol_vendedor ADD MEMBER usr_vendedor;
 GO
 
--- ============================================================
+
 -- 3. REVOKE EXPLÍCITOS
 -- Se usan para quitar permisos previos antes de aplicar DENY.
--- ============================================================
+
 REVOKE SELECT ON dbo.Usuario FROM rol_vendedor;
 REVOKE UPDATE ON dbo.VarianteProducto FROM rol_vendedor;
 REVOKE DELETE ON dbo.Venta FROM rol_vendedor;
 REVOKE SELECT ON dbo.Compra FROM rol_vendedor;
 GO
 
--- ============================================================
+
 -- 4. PERMISOS DEL ADMINISTRADOR
--- ============================================================
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO rol_administrador;
 GRANT EXECUTE ON SCHEMA::dbo TO rol_administrador;
 GRANT EXECUTE ON TYPE::dbo.TipoDetalleVenta TO rol_administrador;
@@ -109,9 +103,9 @@ DENY DELETE ON dbo.Compra TO rol_administrador;
 DENY DELETE ON dbo.DetalleCompra TO rol_administrador;
 GO
 
--- ============================================================
+
 -- 5. PERMISOS DEL VENDEDOR
--- ============================================================
+
 -- Consulta de catálogo, stock y vistas de negocio.
 GRANT SELECT ON dbo.vw_StockVariante TO rol_vendedor;
 GRANT SELECT ON dbo.vw_VentasDetalladas TO rol_vendedor;
