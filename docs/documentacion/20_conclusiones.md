@@ -15,7 +15,7 @@ Implementar las reglas en la base de datos, y no en una aplicación, garantiza q
 - Los **stored procedures** agrupan las operaciones de varios pasos en transacciones: una venta se registra completa o no se registra.
 - Los **permisos** del motor hacen que cada rol solo pueda operar a través de esos SPs, sin tocar las tablas directamente.
 
-En la práctica, el sistema no puede quedar en un estado inconsistente aunque se use de forma incorrecta.
+Usado por las vías previstas (los SPs y los permisos de cada rol), el stock y los totales no quedan inconsistentes. Las limitaciones que quedan se listan más abajo.
 
 ## Sobre el manejo de errores y la concurrencia
 
