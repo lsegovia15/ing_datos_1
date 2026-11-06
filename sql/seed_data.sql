@@ -10,7 +10,7 @@ BEGIN
 END;
 
 
--- 1. ROLES Y USUARIOS DE APLICACIÓN
+-- 1. roles y usuarios
 
 INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
     (1, 'Administrador', 'Acceso total: catálogo, compras, stock, ventas, anulaciones y seguridad.'),
@@ -19,10 +19,7 @@ INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
 INSERT INTO dbo.Usuario
     (IdUsuario, IdRol, NombreUsuario, Email, Contrasena, Nombre, Apellido, Activo)
 VALUES
-    -- Las contraseñas no se guardan en texto plano: se guarda su hash
-    -- SHA-256 en hexadecimal (64 caracteres). HASHBYTES calcula el hash y
-    -- CONVERT(..., 2) lo pasa a texto. Para validar un ingreso se calcula
-    -- el hash de lo que escribe el usuario y se compara con el guardado.
+    -- las contraseñas se guardan hasheadas (SHA-256), no en texto plano
     (1, 1, 'admin',             'admin@siam.local',
         CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin123!'), 2),    'Ana',   'Administradora', 1),
     (2, 2, 'vendedor1',         'vendedor1@siam.local',
@@ -33,7 +30,7 @@ VALUES
         CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Inactivo123!'), 2), 'Diego', 'Inactivo',       0);
 
 
--- 2. CATÁLOGOS
+-- 2. catalogos
 
 INSERT INTO dbo.Categoria (IdCategoria, Nombre, Descripcion) VALUES
     (1, 'Remeras',   'Remeras manga corta y oversize'),
@@ -64,7 +61,7 @@ INSERT INTO dbo.Color (IdColor, Nombre) VALUES
     (5, 'Celeste'), (6, 'Beige'), (7, 'Rojo');
 
 
--- 3. PRODUCTOS Y VARIANTES
+-- 3. productos y variantes
 -- Las variantes se cargan con un stock inicial (inventario de apertura).
 -- Desde acá, el stock solo cambia por compras recibidas, ventas,
 -- anulaciones y ajustes.
@@ -95,7 +92,7 @@ VALUES
     (12, 6, 4, 1, 7, 'REM-BAS-S-ROJ',   10000.00,  2, 5);
 
 
--- 4. PROVEEDORES Y CLIENTES
+-- 4. proveedores y clientes
 
 INSERT INTO dbo.Proveedor (IdProveedor, RazonSocial, CUIT, Telefono, Email, Direccion) VALUES
     (1, 'Distribuidora Norte S.A.', '30-71234567-8', '011-4555-1001', 'ventas@norte.com', 'Av. Cabildo 1234'),
@@ -108,7 +105,7 @@ INSERT INTO dbo.Cliente (IdCliente, Nombre, Apellido, DNI, Telefono, Email, Dire
     (3, 'Sofía',  'Rodríguez','33444555', '11-5555-2003', 'sofia.rodriguez@mail.com','Caballito 333');
 
 
--- 5. COMPRAS (un producto por compra)
+-- 5. compras
 
 -- Compra 1: se registra PENDIENTE y se recibe. Suma 5 unidades a la variante 1.
 EXEC dbo.SP_RegistrarCompra
@@ -135,7 +132,7 @@ SET Estado = 'ANULADA'
 WHERE IdCompra = 3;
 
 
--- 6. VENTAS (un producto por venta)
+-- 6. ventas
 
 -- Venta 1: CONFIRMADA. Vendedor 1, cliente 1.
 EXEC dbo.SP_RegistrarVenta
@@ -173,7 +170,7 @@ EXEC dbo.SP_RegistrarVenta
 EXEC dbo.SP_AnularVenta @IdVenta = 6, @IdUsuario = 1;
 
 
--- 7. AJUSTES DE STOCK
+-- 7. ajustes de stock
 
 -- Ajuste real: la variante 1 pasa de 23 a 22 (movimiento AJUSTE -1).
 EXEC dbo.SP_AjustarStock
@@ -186,7 +183,7 @@ EXEC dbo.SP_AjustarStock
     @Observacion = 'Prueba de ajuste sin diferencia';
 
 
--- 8. CASOS DE ERROR
+-- 8. casos de error
 -- Cada caso se ejecuta dentro de BEGIN TRY / BEGIN CATCH para mostrar
 -- el error y que el seed pueda seguir.
 
@@ -296,7 +293,7 @@ BEGIN TRY
     SELECT '8.10 BORRAR_VENTA' AS Caso, 'ERROR: la venta no debió borrarse' AS Resultado;
 END TRY
 BEGIN CATCH
-    -- El error viene de un trigger: se revierte la operación si quedó abierta.
+    -- el error lo tira un trigger, hago rollback por si quedó algo abierto
     IF @@TRANCOUNT > 0
         ROLLBACK TRANSACTION;
     SELECT '8.10 BORRAR_VENTA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
@@ -308,14 +305,14 @@ BEGIN TRY
     SELECT '8.11 REACTIVAR_VENTA' AS Caso, 'ERROR: la venta no debió reactivarse' AS Resultado;
 END TRY
 BEGIN CATCH
-    -- El error viene de un trigger: se revierte la operación si quedó abierta.
+    -- el error lo tira un trigger, hago rollback por si quedó algo abierto
     IF @@TRANCOUNT > 0
         ROLLBACK TRANSACTION;
     SELECT '8.11 REACTIVAR_VENTA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
 
--- 9. RESUMEN DEL SEED
+-- 9. resumen
 
 SELECT 'Roles' AS Tabla, COUNT(*) AS Cantidad FROM dbo.Rol
 UNION ALL SELECT 'Usuarios', COUNT(*) FROM dbo.Usuario

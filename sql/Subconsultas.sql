@@ -2,7 +2,6 @@ USE SIAM;
 GO
 
 -- Subconsulta: Clientes que han comprado ropa de la categoria 'Buzos'
--- (Asumiendo que existe la categoría, filtramos por IdCategoria)
 
 SELECT Nombre, Apellido, DNI
 FROM Cliente

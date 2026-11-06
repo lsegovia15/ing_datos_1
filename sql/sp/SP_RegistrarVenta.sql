@@ -1,17 +1,9 @@
 USE SIAM;
 GO
 
--- SP_RegistrarVenta
--- Registra la venta de un producto (una variante) en una transacción.
--- El precio unitario se toma de VarianteProducto.PrecioVenta, así el
--- vendedor no puede cargar un precio distinto al del catálogo.
--- Al insertar el detalle se disparan:
---   TR_DescontarStockVenta -> descuenta el stock.
---   TR_CalcularTotalVenta  -> calcula Venta.Total.
---
--- Ejemplo:
---   EXEC dbo.SP_RegistrarVenta @IdCliente = 1, @IdUsuario = 2,
---        @MedioPago = 'EFECTIVO', @IdVariante = 1, @Cantidad = 2;
+-- registra una venta de una variante
+-- el precio sale de VarianteProducto para que no se pueda cargar otro
+-- los triggers descuentan el stock y calculan el total
 
 CREATE OR ALTER PROCEDURE dbo.SP_RegistrarVenta
     @IdCliente      INT = NULL,
@@ -30,7 +22,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF (@Cantidad IS NULL OR @Cantidad <= 0)
         BEGIN
             THROW 50001, 'La cantidad a vender debe ser mayor a cero.', 1;
@@ -80,17 +71,16 @@ BEGIN
             THROW 50008, 'El descuento no puede ser negativo ni mayor al importe de la venta.', 1;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Siguiente número de venta
+        -- numero siguiente
         SELECT @IdVenta = ISNULL(MAX(IdVenta), 0) + 1 FROM Venta;
 
-        -- Cabecera: el total lo calcula TR_CalcularTotalVenta
+        -- cabecera (el total lo calcula el trigger)
         INSERT INTO Venta (IdVenta, IdCliente, IdUsuario, Fecha, MedioPago, Total, Estado)
         VALUES (@IdVenta, @IdCliente, @IdUsuario, GETDATE(), @MedioPago, 0, 'CONFIRMADA');
 
-        -- Detalle: dispara TR_DescontarStockVenta y TR_CalcularTotalVenta
+        -- detalle
         INSERT INTO DetalleVenta (IdVenta, NroLinea, IdVariante, Cantidad, PrecioUnitario, Descuento)
         VALUES (@IdVenta, 1, @IdVariante, @Cantidad, @PrecioUnitario, @Descuento);
 

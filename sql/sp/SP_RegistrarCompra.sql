@@ -1,15 +1,8 @@
 USE SIAM;
 GO
 
--- SP_RegistrarCompra
--- Registra una compra de un producto (una variante) a un proveedor.
--- La compra queda PENDIENTE: el stock no cambia hasta que se reciba
--- con SP_RecibirCompra. Solo puede hacerlo un Administrador activo.
---
--- Ejemplo:
---   EXEC dbo.SP_RegistrarCompra @IdProveedor = 1, @IdUsuario = 1,
---        @IdVariante = 1, @Cantidad = 5, @CostoUnitario = 9000,
---        @NroComprobante = 'FC-A-0001-00000001';
+-- registra una compra a un proveedor (solo administrador)
+-- queda PENDIENTE, el stock se suma recien al recibirla
 
 CREATE OR ALTER PROCEDURE dbo.SP_RegistrarCompra
     @IdProveedor    INT,
@@ -27,7 +20,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Proveedor WHERE IdProveedor = @IdProveedor)
         BEGIN
             THROW 50101, 'El proveedor especificado no existe.', 1;
@@ -64,10 +56,9 @@ BEGIN
 
         SET @Total = @Cantidad * @CostoUnitario;
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Siguiente número de compra
+        -- numero siguiente
         SELECT @IdCompra = ISNULL(MAX(IdCompra), 0) + 1 FROM Compra;
 
         INSERT INTO Compra (IdCompra, IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado)

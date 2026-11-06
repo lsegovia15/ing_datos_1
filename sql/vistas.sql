@@ -1,7 +1,7 @@
 USE SIAM;
 GO
 
--- Vista 1: Control de stock detallado por variante
+-- Vista 1: stock por variante
 
 CREATE OR ALTER VIEW vw_StockVariante AS
 SELECT 
@@ -91,7 +91,7 @@ INNER JOIN Segmento s          ON s.IdSegmento = vp.IdSegmento
 WHERE v.Estado = 'CONFIRMADA'
 GROUP BY s.IdSegmento, s.Nombre, c.IdCategoria, c.Nombre
 HAVING SUM(dv.Cantidad) = (
-    -- Subconsulta correlacionada: calcula la máxima cantidad vendida para ese mismo segmento
+    -- maximo vendido de ese segmento
     SELECT MAX(Totales.UnidadesPorCat)
     FROM (
         SELECT 
