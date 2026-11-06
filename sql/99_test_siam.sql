@@ -1,19 +1,10 @@
-/* SIAM - Pruebas
-   Ejecutar después de 00_master.sql (base recién creada con el seed).
-   Cada prueba que modifica datos abre una transacción y termina con
-   ROLLBACK, así que el script no deja cambios.
-   Cada caso imprime OK o FALLA. Si hay alguna FALLA, al final se lanza
-   un error (útil con sqlcmd -b).
+/* pruebas de la base SIAM
+   correr despues de 00_master.sql (con el seed cargado)
+   las pruebas que modifican datos terminan en ROLLBACK
+   la parte de seguridad usa EXECUTE AS USER, hay que correrla como sysadmin
 
-   Estado esperado después del seed:
-   - Stock: variante 1 = 22, variante 3 = 0, variante 4 = 9, variante 10 = 2.
-   - Ventas: 6 (1, 2, 4 y 5 CONFIRMADAS; 3 y 6 ANULADAS).
-   - Compras: 4 (1 RECIBIDA, 2 PENDIENTE, 3 y 4 ANULADAS).
-   - 1 movimiento de stock (ajuste) y 1 alerta (variante 10).
-
-   La sección 10 (seguridad) entra como usr_admin y usr_vendedor con
-   EXECUTE AS USER, así que hay que ejecutar el script como sysadmin
-   (por ejemplo, con el usuario sa o con autenticación de Windows).
+   despues del seed: stock variante 1 = 22, variante 3 = 0, variante 4 = 9, variante 10 = 2
+   6 ventas (3 y 6 anuladas), 4 compras, 1 ajuste y 1 alerta
 */
 
 USE SIAM;
@@ -371,8 +362,7 @@ ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
 PRINT '';
 PRINT '=== 8. TRIGGERS ===';
 
--- Varias filas con la misma variante en un solo INSERT y en un solo UPDATE:
--- el stock tiene que moverse por la suma de todas.
+-- misma variante en varias filas: el stock se mueve por la suma
 SET @Caso = 'Operaciones de varias filas: descuenta 5, calcula totales y devuelve 5';
 BEGIN TRY
     BEGIN TRANSACTION;
@@ -483,7 +473,6 @@ END CATCH;
 PRINT '';
 PRINT '=== 10. SEGURIDAD ===';
 
--- Contraseñas guardadas como hash SHA-256 (64 caracteres hexadecimales)
 SET @Caso = 'Contraseñas guardadas como hash SHA-256, no en texto plano';
 SELECT @n = COUNT(*) FROM Usuario WHERE LEN(Contrasena) <> 64;
 SELECT @s = COUNT(*) FROM Usuario
@@ -492,8 +481,7 @@ WHERE IdUsuario = 1
 IF @n = 0 AND @s = 1 PRINT 'OK    - ' + @Caso;
 ELSE BEGIN PRINT 'FALLA - ' + @Caso; SET @Fallas = @Fallas + 1; END
 
--- Cada prueba entra como el usuario del rol con EXECUTE AS USER y vuelve
--- con REVERT. El REVERT va fuera del TRY para que se ejecute siempre.
+-- cada prueba entra con EXECUTE AS USER y vuelve con REVERT
 
 -- ADMINISTRADOR
 SET @Caso = 'Administrador no puede leer Usuario.Contrasena -> 230';

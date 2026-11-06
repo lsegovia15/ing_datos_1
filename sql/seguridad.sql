@@ -1,12 +1,9 @@
--- SEGURIDAD SIAM
--- Logins (servidor) -> usuarios (base SIAM) -> roles -> permisos.
--- Criterio de menor privilegio: cada rol recibe con GRANT solo lo que
--- necesita. Lo que no se otorga queda sin acceso.
+-- seguridad: logins -> usuarios -> roles -> permisos
+-- a cada rol le doy con GRANT solo lo que necesita
 
--- 1. LOGINS (nivel servidor)
--- Los logins no se borran al recrear la base, por eso se crean solo si
--- todavía no existen. Las contraseñas son de ejemplo: cambiarlas en un
--- entorno real.
+-- 1. logins
+-- no se borran al recrear la base, asi que se crean solo si no existen
+-- (las contraseñas son de ejemplo)
 USE master;
 GO
 
@@ -18,7 +15,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'login_vendedor_
     CREATE LOGIN login_vendedor_siam WITH PASSWORD = 'Siam_Vend_2026!';
 GO
 
--- 2. USUARIOS DE LA BASE
+-- 2. usuarios de la base
 USE SIAM;
 GO
 
@@ -26,7 +23,7 @@ CREATE USER usr_admin FOR LOGIN login_admin_siam;
 CREATE USER usr_vendedor FOR LOGIN login_vendedor_siam;
 GO
 
--- 3. ROLES Y MIEMBROS
+-- 3. roles
 CREATE ROLE rol_administrador;
 CREATE ROLE rol_vendedor;
 GO
@@ -35,13 +32,10 @@ ALTER ROLE rol_administrador ADD MEMBER usr_admin;
 ALTER ROLE rol_vendedor ADD MEMBER usr_vendedor;
 GO
 
--- 4. PERMISOS DEL ADMINISTRADOR
--- Catálogo, maestros y usuarios: puede consultar y mantener.
+-- 4. permisos del administrador
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Rol       TO rol_administrador;
 
--- Usuarios: puede darlos de alta, modificarlos y borrarlos, pero la
--- consulta se otorga columna por columna, sin Contrasena. Así ni el
--- administrador puede leer las contraseñas (error 230 si lo intenta).
+-- usuarios: el select es por columna, sin Contrasena, para que no pueda leerla
 GRANT SELECT (IdUsuario, IdRol, NombreUsuario, Email, Nombre, Apellido, Activo, FechaAlta)
     ON dbo.Usuario TO rol_administrador;
 GRANT INSERT, UPDATE, DELETE ON dbo.Usuario TO rol_administrador;
@@ -55,16 +49,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Producto  TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Proveedor TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Cliente   TO rol_administrador;
 
--- Variantes: alta y cambio de precio/mínimo. Sin DELETE porque están
--- referenciadas por ventas y compras.
--- El UPDATE se otorga solo sobre PrecioVenta y StockMinimo: StockActual
--- no se puede modificar directo (error 230). El stock solo cambia por
--- compras recibidas, ventas, anulaciones y SP_AjustarStock.
+-- variantes: sin DELETE porque las usan las ventas y compras
+-- el update es solo de precio y minimo, el stock no se toca directo
 GRANT SELECT, INSERT ON dbo.VarianteProducto TO rol_administrador;
 GRANT UPDATE (PrecioVenta, StockMinimo) ON dbo.VarianteProducto TO rol_administrador;
 
--- Ventas, compras y movimientos: solo lectura. Se registran, reciben,
--- anulan y ajustan únicamente a través de los stored procedures.
+-- ventas, compras y movimientos: solo lectura, se modifican con los SP
 GRANT SELECT ON dbo.Venta           TO rol_administrador;
 GRANT SELECT ON dbo.DetalleVenta    TO rol_administrador;
 GRANT SELECT ON dbo.Compra          TO rol_administrador;
@@ -72,16 +62,16 @@ GRANT SELECT ON dbo.DetalleCompra   TO rol_administrador;
 GRANT SELECT ON dbo.MovimientoStock TO rol_administrador;
 GRANT SELECT ON dbo.HistorialPrecio TO rol_administrador;
 
--- Alertas: puede marcarlas como atendidas.
+-- alertas: las puede marcar como atendidas
 GRANT SELECT, UPDATE ON dbo.AlertaStock TO rol_administrador;
 
--- Vistas
+-- vistas
 GRANT SELECT ON dbo.vw_StockVariante                    TO rol_administrador;
 GRANT SELECT ON dbo.vw_VentasDetalladas                 TO rol_administrador;
 GRANT SELECT ON dbo.vw_ProductosPremium                 TO rol_administrador;
 GRANT SELECT ON dbo.vw_CategoriasMasVendidasPorSegmento TO rol_administrador;
 
--- Stored procedures
+-- stored procedures
 GRANT EXECUTE ON dbo.SP_RegistrarVenta         TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_AnularVenta            TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_AjustarStock           TO rol_administrador;
@@ -89,13 +79,12 @@ GRANT EXECUTE ON dbo.SP_RegistrarCompra        TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_RecibirCompra          TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_InformeReposicionStock TO rol_administrador;
 
--- Funciones: la escalar se ejecuta, la de tabla se consulta con SELECT.
+-- funciones
 GRANT EXECUTE ON dbo.fn_EstadoStock             TO rol_administrador;
 GRANT SELECT  ON dbo.fn_ResumenVentasPorUsuario TO rol_administrador;
 GO
 
--- 5. PERMISOS DEL VENDEDOR
--- Solo lectura del catálogo y de clientes.
+-- 5. permisos del vendedor
 GRANT SELECT ON dbo.Producto         TO rol_vendedor;
 GRANT SELECT ON dbo.VarianteProducto TO rol_vendedor;
 GRANT SELECT ON dbo.Categoria        TO rol_vendedor;
@@ -105,24 +94,20 @@ GRANT SELECT ON dbo.Color            TO rol_vendedor;
 GRANT SELECT ON dbo.Segmento         TO rol_vendedor;
 GRANT SELECT ON dbo.Cliente          TO rol_vendedor;
 
--- Vistas de consulta
+-- vistas
 GRANT SELECT ON dbo.vw_StockVariante                    TO rol_vendedor;
 GRANT SELECT ON dbo.vw_VentasDetalladas                 TO rol_vendedor;
 GRANT SELECT ON dbo.vw_ProductosPremium                 TO rol_vendedor;
 GRANT SELECT ON dbo.vw_CategoriasMasVendidasPorSegmento TO rol_vendedor;
 
--- Operaciones: registrar ventas y consultar reposición.
+-- puede registrar ventas y ver reposicion
 GRANT EXECUTE ON dbo.SP_RegistrarVenta         TO rol_vendedor;
 GRANT EXECUTE ON dbo.SP_InformeReposicionStock TO rol_vendedor;
 GRANT EXECUTE ON dbo.fn_EstadoStock            TO rol_vendedor;
 GO
 
--- Sin GRANT, el vendedor no puede: ver usuarios ni contraseñas, ver
--- compras, proveedores ni movimientos, modificar tablas, anular ventas,
--- ajustar stock ni registrar o recibir compras.
---
--- Para quitar un permiso otorgado se usa REVOKE. Ejemplo:
---   REVOKE SELECT ON dbo.Cliente FROM rol_vendedor;
+-- el vendedor no puede ver usuarios, compras ni proveedores, ni anular ventas
+-- ni ajustar stock (para sacar un permiso: REVOKE)
 
 PRINT 'Seguridad SIAM aplicada: logins, usuarios, roles y permisos configurados.';
 GO

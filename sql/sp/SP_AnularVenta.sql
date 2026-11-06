@@ -1,13 +1,8 @@
 USE SIAM;
 GO
 
--- SP_AnularVenta
--- Anula una venta CONFIRMADA. Solo puede hacerlo un Administrador activo.
--- Al pasar la venta a ANULADA se dispara TR_DevolverStockAnulacion,
--- que devuelve el stock.
---
--- Ejemplo:
---   EXEC dbo.SP_AnularVenta @IdVenta = 3, @IdUsuario = 1;
+-- anula una venta CONFIRMADA (solo administrador)
+-- el trigger TR_DevolverStockAnulacion devuelve el stock
 
 CREATE OR ALTER PROCEDURE dbo.SP_AnularVenta
     @IdVenta   INT,
@@ -20,7 +15,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50012, 'El usuario que anula la venta no existe o está inactivo.', 1;
@@ -49,10 +43,8 @@ BEGIN
             THROW 50011, 'La venta ya se encuentra anulada.', 1;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Dispara TR_DevolverStockAnulacion
         UPDATE Venta
         SET Estado = 'ANULADA'
         WHERE IdVenta = @IdVenta

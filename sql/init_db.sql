@@ -1,8 +1,7 @@
 USE master;
 GO
 
--- Borra la base si ya existe para poder volver a crearla desde cero.
--- (Cerrar antes cualquier otra conexión abierta sobre SIAM.)
+-- borra la base si ya existe (cerrar otras conexiones a SIAM antes)
 DROP DATABASE IF EXISTS SIAM;
 GO
 
@@ -13,7 +12,7 @@ USE SIAM;
 GO
 
 
--- TABLAS
+-- tablas
 
 CREATE TABLE Rol (
     IdRol           INT          NOT NULL,
@@ -47,7 +46,7 @@ CREATE TABLE Categoria (
     CONSTRAINT UQ_Categoria_Nombre UNIQUE (Nombre)
 );
 
--- Segmento: público al que va dirigida una variante (Hombre, Mujer, Niño, Niña, Unisex)
+-- segmento: hombre, mujer, niño, niña, unisex
 CREATE TABLE Segmento (
     IdSegmento      INT         NOT NULL,
     Nombre          VARCHAR(50) NOT NULL,
@@ -203,7 +202,7 @@ CREATE TABLE MovimientoStock (
 GO
 
 
--- FOREIGN KEYS
+-- foreign keys
 
 
 ALTER TABLE Usuario ADD CONSTRAINT FK_Usuario_Rol
@@ -264,7 +263,7 @@ ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Venta
     FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta);
 GO
 
--- ÍNDICES
+-- indices
 
 CREATE INDEX IX_Usuario_IdRol                 ON Usuario (IdRol);
 CREATE INDEX IX_Producto_IdCategoria          ON Producto (IdCategoria);
