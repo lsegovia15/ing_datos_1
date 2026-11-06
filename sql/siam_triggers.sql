@@ -3,11 +3,8 @@
 USE SIAM;
 GO
 
--- 1. Al vender: descontar el stock
---    Si no alcanza el stock, se cancela la venta.
---    Se agrupa por variante: si en un mismo INSERT la misma variante
---    aparece en varias filas (por ejemplo, en dos ventas distintas),
---    se descuenta la suma de todas y no solo una de ellas.
+-- 1. al vender descuenta el stock (si no alcanza tira error)
+-- agrupo por variante por si viene repetida en el mismo insert
 
 CREATE TRIGGER TR_DescontarStockVenta
 ON DetalleVenta
@@ -16,7 +13,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VALIDAR STOCK (contra el total pedido por variante)
+    -- valida stock
     IF EXISTS (SELECT 1
                FROM (SELECT IdVariante, SUM(Cantidad) AS Cantidad
                      FROM inserted
@@ -27,7 +24,6 @@ BEGIN
         THROW 50200, 'No hay stock suficiente para realizar la venta.', 1;
     END
 
-    -- DESCONTAR STOCK
     UPDATE v
     SET v.StockActual = v.StockActual - i.Cantidad
     FROM VarianteProducto v
@@ -42,7 +38,7 @@ GO
 
 
 
--- 2. Al vender: recalcular el total de la venta
+-- 2. recalcula el total de la venta
 
 CREATE TRIGGER TR_CalcularTotalVenta
 ON DetalleVenta
@@ -61,10 +57,8 @@ END;
 GO
 
 
--- 3. Al anular una venta: devolver el stock
---    Unico cambio de estado permitido: CONFIRMADA -> ANULADA.
---    (Si una venta ANULADA volviera a CONFIRMADA, el stock no se
---    descontaria de nuevo y quedaria inconsistente.)
+-- 3. al anular una venta devuelve el stock
+-- solo deja pasar de CONFIRMADA a ANULADA, sino el stock quedaba mal
 
 CREATE TRIGGER TR_DevolverStockAnulacion
 ON Venta
@@ -73,7 +67,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VALIDAR TRANSICION DE ESTADO
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdVenta = i.IdVenta
@@ -83,9 +76,7 @@ BEGIN
         THROW 50201, 'Cambio de estado de venta no permitido. Solo se puede pasar de CONFIRMADA a ANULADA.', 1;
     END
 
-    -- Solo las ventas que pasaron de CONFIRMADA a ANULADA.
-    -- Se agrupa por variante porque un mismo UPDATE puede anular
-    -- varias ventas que contienen la misma variante.
+    -- solo las que pasaron de CONFIRMADA a ANULADA
     UPDATE v
     SET v.StockActual = v.StockActual + x.Cantidad
     FROM VarianteProducto v
@@ -102,10 +93,8 @@ GO
 
 
 
--- 4. Al recibir una compra: sumar el stock
---    Cambios de estado permitidos: PENDIENTE -> RECIBIDA y
---    PENDIENTE -> ANULADA. (Si una compra RECIBIDA volviera a
---    PENDIENTE y se recibiera otra vez, el stock se sumaria dos veces.)
+-- 4. al recibir una compra suma el stock
+-- solo permite PENDIENTE -> RECIBIDA o ANULADA, si no se podria sumar dos veces
 
 CREATE TRIGGER TR_SumarStockCompra
 ON Compra
@@ -114,7 +103,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VALIDAR TRANSICION DE ESTADO
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdCompra = i.IdCompra
@@ -124,9 +112,7 @@ BEGIN
         THROW 50202, 'Cambio de estado de compra no permitido. Solo se puede pasar de PENDIENTE a RECIBIDA o ANULADA.', 1;
     END
 
-    -- Solo las compras que pasaron de PENDIENTE a RECIBIDA.
-    -- Se agrupa por variante porque un mismo UPDATE puede recibir
-    -- varias compras que contienen la misma variante.
+    -- solo las que pasaron de PENDIENTE a RECIBIDA
     UPDATE v
     SET v.StockActual = v.StockActual + x.Cantidad
     FROM VarianteProducto v
@@ -143,7 +129,7 @@ GO
 
 
 
--- 5. Alerta de stock bajo el minimo
+-- 5. alerta cuando el stock llega al minimo
 
 CREATE TABLE AlertaStock (
     IdAlerta        INT      IDENTITY(1,1) NOT NULL,
@@ -166,8 +152,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Solo las variantes que recien bajaron al minimo
-    -- (antes estaban por encima y ahora quedaron igual o por debajo)
+    -- solo las que recien bajaron al minimo (antes estaban por encima)
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdVariante = i.IdVariante
@@ -189,7 +174,7 @@ GO
 
 
 
--- 6. Auditoria: historial de cambios de precio
+-- 6. guarda el historial de cambios de precio
 
 CREATE TABLE HistorialPrecio (
     IdHistorial     INT           IDENTITY(1,1) NOT NULL,
@@ -210,7 +195,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- deleted = precio viejo, inserted = precio nuevo
+    -- deleted es el precio viejo e inserted el nuevo
     INSERT INTO HistorialPrecio (IdVariante, PrecioAnterior, PrecioNuevo)
     SELECT i.IdVariante, d.PrecioVenta, i.PrecioVenta
     FROM inserted i
@@ -222,7 +207,7 @@ GO
 
 
 
--- 7. Las ventas no se borran, se anulan
+-- 7. las ventas no se borran, se anulan
 
 CREATE TRIGGER TR_NoBorrarVenta
 ON Venta
@@ -231,9 +216,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- INSTEAD OF: el DELETE nunca se ejecuta. Se lanza un error
-    -- (en lugar de un PRINT) para que quien intento borrar se entere
-    -- de que la operacion no se realizo.
+    -- el delete nunca se hace, tira error para que se entere
     IF EXISTS (SELECT 1 FROM deleted)
     BEGIN
         THROW 50203, 'Las ventas no se pueden borrar. Use SP_AnularVenta para anularla.', 1;
@@ -244,9 +227,8 @@ GO
 
 
 
--- 8. Ajustes de stock: aplicar el AJUSTE sobre el stock
---    SP_AjustarStock inserta el movimiento con la diferencia
---    (positiva o negativa) y este trigger la aplica.
+-- 8. aplica los ajustes de stock
+-- SP_AjustarStock inserta la diferencia y este trigger la suma al stock
 
 CREATE TRIGGER TR_AplicarAjusteStock
 ON MovimientoStock
@@ -256,8 +238,6 @@ BEGIN
 
     SET NOCOUNT ON;
 
-    -- Agrupado por variante: un INSERT con varios ajustes de la
-    -- misma variante aplica la suma de todos.
     UPDATE v
     SET v.StockActual = v.StockActual + i.Cantidad
     FROM VarianteProducto v

@@ -1,16 +1,9 @@
 USE SIAM;
 GO
 
--- SP_AjustarStock
--- Corrige el stock de una variante después de un recuento físico.
--- Recibe la cantidad contada, calcula la diferencia con el stock del
--- sistema y la registra como movimiento AJUSTE en MovimientoStock.
--- TR_AplicarAjusteStock aplica esa diferencia sobre StockActual.
--- Solo puede hacerlo un Administrador activo.
---
--- Ejemplo:
---   EXEC dbo.SP_AjustarStock @IdVariante = 1, @NuevaCantidad = 17,
---        @IdUsuario = 1, @Observacion = 'Recuento físico';
+-- ajusta el stock de una variante despues de contar fisicamente
+-- guarda la diferencia como AJUSTE y el trigger la aplica
+-- solo administrador
 
 CREATE OR ALTER PROCEDURE dbo.SP_AjustarStock
     @IdVariante     INT,
@@ -27,7 +20,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF (@NuevaCantidad IS NULL OR @NuevaCantidad < 0)
         BEGIN
             THROW 50020, 'La nueva cantidad de stock no puede ser negativa.', 1;
@@ -58,7 +50,7 @@ BEGIN
 
         SET @Diferencia = @NuevaCantidad - @StockActual;
 
-        -- Si no hay diferencia no se registra nada
+        -- si no hay diferencia no hace nada
         IF (@Diferencia = 0)
         BEGIN
             SELECT @IdVariante  AS IdVariante,
@@ -67,12 +59,11 @@ BEGIN
             RETURN;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
         SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
 
-        -- Dispara TR_AplicarAjusteStock, que suma la diferencia (con signo)
+        -- dispara TR_AplicarAjusteStock
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
         VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 

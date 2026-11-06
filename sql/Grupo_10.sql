@@ -1,17 +1,13 @@
--- SIAM - Grupo 10 - Script completo de la base de datos
--- Crea la base, tablas, triggers, funciones, vistas, stored procedures, cursor,
--- datos de prueba, consultas y seguridad. Ejecutar de principio a fin con un
--- usuario sysadmin. OJO: borra y recrea la base SIAM si ya existe.
+-- SIAM - Grupo 10
+-- script completo: base, tablas, triggers, funciones, vistas, SP, datos y seguridad
+-- ojo que borra y vuelve a crear la base SIAM
 
+-- ===== init_db.sql =====
 
--- ====================================================================
--- 1. init_db.sql
--- ====================================================================
 USE master;
 GO
 
--- Borra la base si ya existe para poder volver a crearla desde cero.
--- (Cerrar antes cualquier otra conexión abierta sobre SIAM.)
+-- borra la base si ya existe (cerrar otras conexiones a SIAM antes)
 DROP DATABASE IF EXISTS SIAM;
 GO
 
@@ -22,7 +18,7 @@ USE SIAM;
 GO
 
 
--- TABLAS
+-- tablas
 
 CREATE TABLE Rol (
     IdRol           INT          NOT NULL,
@@ -56,7 +52,7 @@ CREATE TABLE Categoria (
     CONSTRAINT UQ_Categoria_Nombre UNIQUE (Nombre)
 );
 
--- Segmento: público al que va dirigida una variante (Hombre, Mujer, Niño, Niña, Unisex)
+-- segmento: hombre, mujer, niño, niña, unisex
 CREATE TABLE Segmento (
     IdSegmento      INT         NOT NULL,
     Nombre          VARCHAR(50) NOT NULL,
@@ -212,7 +208,7 @@ CREATE TABLE MovimientoStock (
 GO
 
 
--- FOREIGN KEYS
+-- foreign keys
 
 
 ALTER TABLE Usuario ADD CONSTRAINT FK_Usuario_Rol
@@ -273,7 +269,7 @@ ALTER TABLE MovimientoStock ADD CONSTRAINT FK_Mov_Venta
     FOREIGN KEY (IdVenta) REFERENCES Venta (IdVenta);
 GO
 
--- ÍNDICES
+-- indices
 
 CREATE INDEX IX_Usuario_IdRol                 ON Usuario (IdRol);
 CREATE INDEX IX_Producto_IdCategoria          ON Producto (IdCategoria);
@@ -299,21 +295,13 @@ CREATE INDEX IX_Venta_Fecha                   ON Venta (Fecha);
 CREATE INDEX IX_Mov_Fecha                     ON MovimientoStock (Fecha);
 GO
 
-GO
-
--- ====================================================================
--- 2. siam_triggers.sql
--- ====================================================================
-
+-- ===== siam_triggers.sql =====
 
 USE SIAM;
 GO
 
--- 1. Al vender: descontar el stock
---    Si no alcanza el stock, se cancela la venta.
---    Se agrupa por variante: si en un mismo INSERT la misma variante
---    aparece en varias filas (por ejemplo, en dos ventas distintas),
---    se descuenta la suma de todas y no solo una de ellas.
+-- 1. al vender descuenta el stock (si no alcanza tira error)
+-- agrupo por variante por si viene repetida en el mismo insert
 
 CREATE TRIGGER TR_DescontarStockVenta
 ON DetalleVenta
@@ -322,7 +310,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VALIDAR STOCK (contra el total pedido por variante)
+    -- valida stock
     IF EXISTS (SELECT 1
                FROM (SELECT IdVariante, SUM(Cantidad) AS Cantidad
                      FROM inserted
@@ -333,7 +321,6 @@ BEGIN
         THROW 50200, 'No hay stock suficiente para realizar la venta.', 1;
     END
 
-    -- DESCONTAR STOCK
     UPDATE v
     SET v.StockActual = v.StockActual - i.Cantidad
     FROM VarianteProducto v
@@ -348,7 +335,7 @@ GO
 
 
 
--- 2. Al vender: recalcular el total de la venta
+-- 2. recalcula el total de la venta
 
 CREATE TRIGGER TR_CalcularTotalVenta
 ON DetalleVenta
@@ -367,10 +354,8 @@ END;
 GO
 
 
--- 3. Al anular una venta: devolver el stock
---    Unico cambio de estado permitido: CONFIRMADA -> ANULADA.
---    (Si una venta ANULADA volviera a CONFIRMADA, el stock no se
---    descontaria de nuevo y quedaria inconsistente.)
+-- 3. al anular una venta devuelve el stock
+-- solo deja pasar de CONFIRMADA a ANULADA, sino el stock quedaba mal
 
 CREATE TRIGGER TR_DevolverStockAnulacion
 ON Venta
@@ -379,7 +364,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VALIDAR TRANSICION DE ESTADO
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdVenta = i.IdVenta
@@ -389,9 +373,7 @@ BEGIN
         THROW 50201, 'Cambio de estado de venta no permitido. Solo se puede pasar de CONFIRMADA a ANULADA.', 1;
     END
 
-    -- Solo las ventas que pasaron de CONFIRMADA a ANULADA.
-    -- Se agrupa por variante porque un mismo UPDATE puede anular
-    -- varias ventas que contienen la misma variante.
+    -- solo las que pasaron de CONFIRMADA a ANULADA
     UPDATE v
     SET v.StockActual = v.StockActual + x.Cantidad
     FROM VarianteProducto v
@@ -408,10 +390,8 @@ GO
 
 
 
--- 4. Al recibir una compra: sumar el stock
---    Cambios de estado permitidos: PENDIENTE -> RECIBIDA y
---    PENDIENTE -> ANULADA. (Si una compra RECIBIDA volviera a
---    PENDIENTE y se recibiera otra vez, el stock se sumaria dos veces.)
+-- 4. al recibir una compra suma el stock
+-- solo permite PENDIENTE -> RECIBIDA o ANULADA, si no se podria sumar dos veces
 
 CREATE TRIGGER TR_SumarStockCompra
 ON Compra
@@ -420,7 +400,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VALIDAR TRANSICION DE ESTADO
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdCompra = i.IdCompra
@@ -430,9 +409,7 @@ BEGIN
         THROW 50202, 'Cambio de estado de compra no permitido. Solo se puede pasar de PENDIENTE a RECIBIDA o ANULADA.', 1;
     END
 
-    -- Solo las compras que pasaron de PENDIENTE a RECIBIDA.
-    -- Se agrupa por variante porque un mismo UPDATE puede recibir
-    -- varias compras que contienen la misma variante.
+    -- solo las que pasaron de PENDIENTE a RECIBIDA
     UPDATE v
     SET v.StockActual = v.StockActual + x.Cantidad
     FROM VarianteProducto v
@@ -449,7 +426,7 @@ GO
 
 
 
--- 5. Alerta de stock bajo el minimo
+-- 5. alerta cuando el stock llega al minimo
 
 CREATE TABLE AlertaStock (
     IdAlerta        INT      IDENTITY(1,1) NOT NULL,
@@ -472,8 +449,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Solo las variantes que recien bajaron al minimo
-    -- (antes estaban por encima y ahora quedaron igual o por debajo)
+    -- solo las que recien bajaron al minimo (antes estaban por encima)
     IF EXISTS (SELECT 1
                FROM inserted i
                JOIN deleted d ON d.IdVariante = i.IdVariante
@@ -495,7 +471,7 @@ GO
 
 
 
--- 6. Auditoria: historial de cambios de precio
+-- 6. guarda el historial de cambios de precio
 
 CREATE TABLE HistorialPrecio (
     IdHistorial     INT           IDENTITY(1,1) NOT NULL,
@@ -516,7 +492,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- deleted = precio viejo, inserted = precio nuevo
+    -- deleted es el precio viejo e inserted el nuevo
     INSERT INTO HistorialPrecio (IdVariante, PrecioAnterior, PrecioNuevo)
     SELECT i.IdVariante, d.PrecioVenta, i.PrecioVenta
     FROM inserted i
@@ -528,7 +504,7 @@ GO
 
 
 
--- 7. Las ventas no se borran, se anulan
+-- 7. las ventas no se borran, se anulan
 
 CREATE TRIGGER TR_NoBorrarVenta
 ON Venta
@@ -537,9 +513,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- INSTEAD OF: el DELETE nunca se ejecuta. Se lanza un error
-    -- (en lugar de un PRINT) para que quien intento borrar se entere
-    -- de que la operacion no se realizo.
+    -- el delete nunca se hace, tira error para que se entere
     IF EXISTS (SELECT 1 FROM deleted)
     BEGIN
         THROW 50203, 'Las ventas no se pueden borrar. Use SP_AnularVenta para anularla.', 1;
@@ -550,9 +524,8 @@ GO
 
 
 
--- 8. Ajustes de stock: aplicar el AJUSTE sobre el stock
---    SP_AjustarStock inserta el movimiento con la diferencia
---    (positiva o negativa) y este trigger la aplica.
+-- 8. aplica los ajustes de stock
+-- SP_AjustarStock inserta la diferencia y este trigger la suma al stock
 
 CREATE TRIGGER TR_AplicarAjusteStock
 ON MovimientoStock
@@ -562,8 +535,6 @@ BEGIN
 
     SET NOCOUNT ON;
 
-    -- Agrupado por variante: un INSERT con varios ajustes de la
-    -- misma variante aplica la suma de todos.
     UPDATE v
     SET v.StockActual = v.StockActual + i.Cantidad
     FROM VarianteProducto v
@@ -575,16 +546,13 @@ BEGIN
 END;
 GO
 
-GO
+-- ===== funciones.sql =====
 
--- ====================================================================
--- 3. funciones.sql
--- ====================================================================
 USE SIAM;
 GO
 
- --   Objetivo: informar el estado del stock de una variante de producto.
- --   Ejemplo de uso: SELECT dbo.fn_EstadoStock(1) AS EstadoStock;
+-- devuelve el estado del stock de una variante
+-- SELECT dbo.fn_EstadoStock(1);
 
 CREATE OR ALTER FUNCTION dbo.fn_EstadoStock
 (
@@ -593,11 +561,9 @@ CREATE OR ALTER FUNCTION dbo.fn_EstadoStock
 RETURNS VARCHAR(20)
 AS
 BEGIN
-    -- Variable que guarda el estado calculado para la variante consultada.
     DECLARE @Estado VARCHAR(20);
 
-    -- Relaciona la variante con su producto y determina el estado.
-    -- Se evalua primero si el producto esta inactivo; luego, el nivel de stock.
+    -- primero miro si el producto esta inactivo y despues el stock
     SELECT @Estado =
         CASE
             WHEN p.Activo = 0                     THEN 'INACTIVO'
@@ -609,17 +575,14 @@ BEGIN
     INNER JOIN dbo.Producto AS p ON p.IdProducto = v.IdProducto
     WHERE v.IdVariante = @IdVariante;
 
-    -- Devuelve el estado obtenido (NULL si no se encuentra la variante).
+    -- si la variante no existe devuelve NULL
     RETURN @Estado;
 END;
 GO
 
 
- --Objetivo: obtener la cantidad de ventas y el total vendido por usuario
- --dentro de un periodo.
- --Ejemplo de uso: SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31');
-
-
+-- cantidad de ventas y total vendido por usuario en un periodo
+-- SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31');
 CREATE OR ALTER FUNCTION dbo.fn_ResumenVentasPorUsuario
 (
     @FechaDesde DATE,
@@ -633,33 +596,23 @@ RETURN
         u.IdUsuario,
         u.NombreUsuario,
         COUNT(*) AS CantidadVentas,
-        -- Suma los importes y muestra el total con dos decimales.
         CAST(SUM(v.Total) AS DECIMAL(18, 2)) AS TotalVendido
     FROM dbo.Venta AS v
     INNER JOIN dbo.Usuario AS u ON u.IdUsuario = v.IdUsuario
-    -- Solo incluye ventas confirmadas dentro del rango de fechas.
-    -- El limite superior excluye el inicio del dia siguiente para incluir
-    -- todas las horas de @FechaHasta, si Fecha contiene hora.
+    -- solo confirmadas; el < dia siguiente es para que entre todo el ultimo dia
     WHERE v.Estado = 'CONFIRMADA'
       AND v.Fecha >= @FechaDesde
       AND v.Fecha < DATEADD(DAY, 1, @FechaHasta)
-    -- Calcula una fila de resumen por cada usuario con ventas en el periodo.
     GROUP BY u.IdUsuario, u.NombreUsuario
 );
 GO
 
--- Ejemplos de utilizacion:
--- SELECT dbo.fn_EstadoStock(1) AS EstadoStock;
--- SELECT * FROM dbo.fn_ResumenVentasPorUsuario('2026-01-01', '2026-12-31');
-GO
+-- ===== vistas.sql =====
 
--- ====================================================================
--- 4. vistas.sql
--- ====================================================================
 USE SIAM;
 GO
 
--- Vista 1: Control de stock detallado por variante
+-- Vista 1: stock por variante
 
 CREATE OR ALTER VIEW vw_StockVariante AS
 SELECT 
@@ -749,7 +702,7 @@ INNER JOIN Segmento s          ON s.IdSegmento = vp.IdSegmento
 WHERE v.Estado = 'CONFIRMADA'
 GROUP BY s.IdSegmento, s.Nombre, c.IdCategoria, c.Nombre
 HAVING SUM(dv.Cantidad) = (
-    -- Subconsulta correlacionada: calcula la máxima cantidad vendida para ese mismo segmento
+    -- maximo vendido de ese segmento
     SELECT MAX(Totales.UnidadesPorCat)
     FROM (
         SELECT 
@@ -766,25 +719,15 @@ HAVING SUM(dv.Cantidad) = (
     WHERE Totales.IdSegmento = s.IdSegmento
 );
 GO
-GO
 
--- ====================================================================
--- 5. sp/SP_RegistrarVenta.sql
--- ====================================================================
+-- ===== sp/SP_RegistrarVenta.sql =====
+
 USE SIAM;
 GO
 
--- SP_RegistrarVenta
--- Registra la venta de un producto (una variante) en una transacción.
--- El precio unitario se toma de VarianteProducto.PrecioVenta, así el
--- vendedor no puede cargar un precio distinto al del catálogo.
--- Al insertar el detalle se disparan:
---   TR_DescontarStockVenta -> descuenta el stock.
---   TR_CalcularTotalVenta  -> calcula Venta.Total.
---
--- Ejemplo:
---   EXEC dbo.SP_RegistrarVenta @IdCliente = 1, @IdUsuario = 2,
---        @MedioPago = 'EFECTIVO', @IdVariante = 1, @Cantidad = 2;
+-- registra una venta de una variante
+-- el precio sale de VarianteProducto para que no se pueda cargar otro
+-- los triggers descuentan el stock y calculan el total
 
 CREATE OR ALTER PROCEDURE dbo.SP_RegistrarVenta
     @IdCliente      INT = NULL,
@@ -803,7 +746,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF (@Cantidad IS NULL OR @Cantidad <= 0)
         BEGIN
             THROW 50001, 'La cantidad a vender debe ser mayor a cero.', 1;
@@ -853,17 +795,16 @@ BEGIN
             THROW 50008, 'El descuento no puede ser negativo ni mayor al importe de la venta.', 1;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Siguiente número de venta
+        -- numero siguiente
         SELECT @IdVenta = ISNULL(MAX(IdVenta), 0) + 1 FROM Venta;
 
-        -- Cabecera: el total lo calcula TR_CalcularTotalVenta
+        -- cabecera (el total lo calcula el trigger)
         INSERT INTO Venta (IdVenta, IdCliente, IdUsuario, Fecha, MedioPago, Total, Estado)
         VALUES (@IdVenta, @IdCliente, @IdUsuario, GETDATE(), @MedioPago, 0, 'CONFIRMADA');
 
-        -- Detalle: dispara TR_DescontarStockVenta y TR_CalcularTotalVenta
+        -- detalle
         INSERT INTO DetalleVenta (IdVenta, NroLinea, IdVariante, Cantidad, PrecioUnitario, Descuento)
         VALUES (@IdVenta, 1, @IdVariante, @Cantidad, @PrecioUnitario, @Descuento);
 
@@ -885,21 +826,13 @@ BEGIN
 END;
 GO
 
-GO
+-- ===== sp/SP_AnularVenta.sql =====
 
--- ====================================================================
--- 6. sp/SP_AnularVenta.sql
--- ====================================================================
 USE SIAM;
 GO
 
--- SP_AnularVenta
--- Anula una venta CONFIRMADA. Solo puede hacerlo un Administrador activo.
--- Al pasar la venta a ANULADA se dispara TR_DevolverStockAnulacion,
--- que devuelve el stock.
---
--- Ejemplo:
---   EXEC dbo.SP_AnularVenta @IdVenta = 3, @IdUsuario = 1;
+-- anula una venta CONFIRMADA (solo administrador)
+-- el trigger TR_DevolverStockAnulacion devuelve el stock
 
 CREATE OR ALTER PROCEDURE dbo.SP_AnularVenta
     @IdVenta   INT,
@@ -912,7 +845,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50012, 'El usuario que anula la venta no existe o está inactivo.', 1;
@@ -941,10 +873,8 @@ BEGIN
             THROW 50011, 'La venta ya se encuentra anulada.', 1;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Dispara TR_DevolverStockAnulacion
         UPDATE Venta
         SET Estado = 'ANULADA'
         WHERE IdVenta = @IdVenta
@@ -965,24 +895,14 @@ BEGIN
 END;
 GO
 
-GO
+-- ===== sp/SP_AjustarStock.sql =====
 
--- ====================================================================
--- 7. sp/SP_AjustarStock.sql
--- ====================================================================
 USE SIAM;
 GO
 
--- SP_AjustarStock
--- Corrige el stock de una variante después de un recuento físico.
--- Recibe la cantidad contada, calcula la diferencia con el stock del
--- sistema y la registra como movimiento AJUSTE en MovimientoStock.
--- TR_AplicarAjusteStock aplica esa diferencia sobre StockActual.
--- Solo puede hacerlo un Administrador activo.
---
--- Ejemplo:
---   EXEC dbo.SP_AjustarStock @IdVariante = 1, @NuevaCantidad = 17,
---        @IdUsuario = 1, @Observacion = 'Recuento físico';
+-- ajusta el stock de una variante despues de contar fisicamente
+-- guarda la diferencia como AJUSTE y el trigger la aplica
+-- solo administrador
 
 CREATE OR ALTER PROCEDURE dbo.SP_AjustarStock
     @IdVariante     INT,
@@ -999,7 +919,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF (@NuevaCantidad IS NULL OR @NuevaCantidad < 0)
         BEGIN
             THROW 50020, 'La nueva cantidad de stock no puede ser negativa.', 1;
@@ -1030,7 +949,7 @@ BEGIN
 
         SET @Diferencia = @NuevaCantidad - @StockActual;
 
-        -- Si no hay diferencia no se registra nada
+        -- si no hay diferencia no hace nada
         IF (@Diferencia = 0)
         BEGIN
             SELECT @IdVariante  AS IdVariante,
@@ -1039,12 +958,11 @@ BEGIN
             RETURN;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
         SELECT @IdMovimiento = ISNULL(MAX(IdMovimiento), 0) + 1 FROM MovimientoStock;
 
-        -- Dispara TR_AplicarAjusteStock, que suma la diferencia (con signo)
+        -- dispara TR_AplicarAjusteStock
         INSERT INTO MovimientoStock (IdMovimiento, IdVariante, IdUsuario, Fecha, TipoMovimiento, Cantidad, Observacion)
         VALUES (@IdMovimiento, @IdVariante, @IdUsuario, GETDATE(), 'AJUSTE', @Diferencia, @Observacion);
 
@@ -1066,23 +984,13 @@ BEGIN
 END;
 GO
 
-GO
+-- ===== sp/SP_RegistrarCompra.sql =====
 
--- ====================================================================
--- 8. sp/SP_RegistrarCompra.sql
--- ====================================================================
 USE SIAM;
 GO
 
--- SP_RegistrarCompra
--- Registra una compra de un producto (una variante) a un proveedor.
--- La compra queda PENDIENTE: el stock no cambia hasta que se reciba
--- con SP_RecibirCompra. Solo puede hacerlo un Administrador activo.
---
--- Ejemplo:
---   EXEC dbo.SP_RegistrarCompra @IdProveedor = 1, @IdUsuario = 1,
---        @IdVariante = 1, @Cantidad = 5, @CostoUnitario = 9000,
---        @NroComprobante = 'FC-A-0001-00000001';
+-- registra una compra a un proveedor (solo administrador)
+-- queda PENDIENTE, el stock se suma recien al recibirla
 
 CREATE OR ALTER PROCEDURE dbo.SP_RegistrarCompra
     @IdProveedor    INT,
@@ -1100,7 +1008,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Proveedor WHERE IdProveedor = @IdProveedor)
         BEGIN
             THROW 50101, 'El proveedor especificado no existe.', 1;
@@ -1137,10 +1044,9 @@ BEGIN
 
         SET @Total = @Cantidad * @CostoUnitario;
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Siguiente número de compra
+        -- numero siguiente
         SELECT @IdCompra = ISNULL(MAX(IdCompra), 0) + 1 FROM Compra;
 
         INSERT INTO Compra (IdCompra, IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado)
@@ -1165,21 +1071,13 @@ BEGIN
 END;
 GO
 
-GO
+-- ===== sp/SP_RecibirCompra.sql =====
 
--- ====================================================================
--- 9. sp/SP_RecibirCompra.sql
--- ====================================================================
 USE SIAM;
 GO
 
--- SP_RecibirCompra
--- Marca como RECIBIDA una compra PENDIENTE. Al cambiar el estado se
--- dispara TR_SumarStockCompra, que suma la mercadería al stock.
--- Solo puede hacerlo un Administrador activo.
---
--- Ejemplo:
---   EXEC dbo.SP_RecibirCompra @IdCompra = 1, @IdUsuario = 1;
+-- pasa una compra de PENDIENTE a RECIBIDA (solo administrador)
+-- el trigger TR_SumarStockCompra suma el stock
 
 CREATE OR ALTER PROCEDURE dbo.SP_RecibirCompra
     @IdCompra  INT,
@@ -1192,7 +1090,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50113, 'El usuario que recibe la compra no existe o está inactivo.', 1;
@@ -1226,10 +1123,8 @@ BEGIN
             THROW 50111, 'No se puede recibir una compra sin líneas de detalle.', 1;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Dispara TR_SumarStockCompra
         UPDATE Compra
         SET Estado = 'RECIBIDA'
         WHERE IdCompra = @IdCompra
@@ -1250,37 +1145,20 @@ BEGIN
 END;
 GO
 
-GO
+-- ===== cursores.sql =====
 
--- ====================================================================
--- 10. cursores.sql
--- ====================================================================
 USE SIAM;
 GO
 
--- SP_InformeReposicionStock
---
--- Problema que resuelve: indicar qué variantes hay que reponer y cuántas
--- unidades pedir de cada una.
--- Por qué un cursor: para cada variante se toma una decisión individual
--- (prioridad URGENTE o NORMAL y cantidad a pedir) y se muestra un mensaje
--- distinto según el caso, recorriendo los registros uno por uno.
--- Registros procesados: variantes de productos activos con
--- StockActual <= StockMinimo.
--- Operación sobre cada registro:
---   - Objetivo de stock = el doble del mínimo (o 1 si el mínimo es 0).
---   - Cantidad sugerida = objetivo - stock actual.
---   - Prioridad URGENTE si no queda stock; NORMAL en otro caso.
---
--- Ejemplo:
---   EXEC dbo.SP_InformeReposicionStock;
+-- informe de reposicion: recorre con un cursor las variantes que quedaron
+-- en el minimo o por debajo y calcula cuanto pedir de cada una
+-- EXEC dbo.SP_InformeReposicionStock;
 
 CREATE OR ALTER PROCEDURE dbo.SP_InformeReposicionStock
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- VARIABLES
     DECLARE @SKU              VARCHAR(30);
     DECLARE @Producto         VARCHAR(100);
     DECLARE @StockActual      INT;
@@ -1290,13 +1168,12 @@ BEGIN
     DECLARE @Prioridad        VARCHAR(10);
     DECLARE @Cantidad         INT = 0;
 
-    -- ELIMINAR CURSOR SI QUEDÓ ABIERTO DE UNA EJECUCIÓN ANTERIOR
+    -- por si el cursor quedó abierto de antes
     IF CURSOR_STATUS('global', 'cursor_reposicion') >= 0
         CLOSE cursor_reposicion;
     IF CURSOR_STATUS('global', 'cursor_reposicion') >= -1
         DEALLOCATE cursor_reposicion;
 
-    -- DECLARAR CURSOR
     DECLARE cursor_reposicion CURSOR FOR
         SELECT v.SKU, p.Nombre, v.StockActual, v.StockMinimo
         FROM VarianteProducto v
@@ -1305,20 +1182,17 @@ BEGIN
           AND v.StockActual <= v.StockMinimo
         ORDER BY v.StockActual, v.IdVariante;
 
-    -- ABRIR CURSOR
     OPEN cursor_reposicion;
 
-    -- OBTENER PRIMER REGISTRO
     FETCH NEXT FROM cursor_reposicion
         INTO @SKU, @Producto, @StockActual, @StockMinimo;
 
     PRINT 'INFORME DE REPOSICIÓN DE STOCK';
     PRINT '------------------------------';
 
-    -- RECORRER
     WHILE @@FETCH_STATUS = 0
     BEGIN
-        -- Stock que se quiere alcanzar
+        -- objetivo: el doble del minimo
         IF @StockMinimo = 0
             SET @Objetivo = 1;
         ELSE
@@ -1345,19 +1219,14 @@ BEGIN
     PRINT '------------------------------';
     PRINT CONCAT('Variantes a reponer: ', @Cantidad);
 
-    -- CERRAR CURSOR
     CLOSE cursor_reposicion;
 
-    -- LIBERAR MEMORIA
     DEALLOCATE cursor_reposicion;
 END;
 GO
 
-GO
+-- ===== seed_data.sql =====
 
--- ====================================================================
--- 11. seed_data.sql
--- ====================================================================
 USE SIAM;
 GO
 
@@ -1370,7 +1239,7 @@ BEGIN
 END;
 
 
--- 1. ROLES Y USUARIOS DE APLICACIÓN
+-- 1. roles y usuarios
 
 INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
     (1, 'Administrador', 'Acceso total: catálogo, compras, stock, ventas, anulaciones y seguridad.'),
@@ -1379,10 +1248,7 @@ INSERT INTO dbo.Rol (IdRol, Nombre, Descripcion) VALUES
 INSERT INTO dbo.Usuario
     (IdUsuario, IdRol, NombreUsuario, Email, Contrasena, Nombre, Apellido, Activo)
 VALUES
-    -- Las contraseñas no se guardan en texto plano: se guarda su hash
-    -- SHA-256 en hexadecimal (64 caracteres). HASHBYTES calcula el hash y
-    -- CONVERT(..., 2) lo pasa a texto. Para validar un ingreso se calcula
-    -- el hash de lo que escribe el usuario y se compara con el guardado.
+    -- las contraseñas se guardan hasheadas (SHA-256), no en texto plano
     (1, 1, 'admin',             'admin@siam.local',
         CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin123!'), 2),    'Ana',   'Administradora', 1),
     (2, 2, 'vendedor1',         'vendedor1@siam.local',
@@ -1393,7 +1259,7 @@ VALUES
         CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Inactivo123!'), 2), 'Diego', 'Inactivo',       0);
 
 
--- 2. CATÁLOGOS
+-- 2. catalogos
 
 INSERT INTO dbo.Categoria (IdCategoria, Nombre, Descripcion) VALUES
     (1, 'Remeras',   'Remeras manga corta y oversize'),
@@ -1424,7 +1290,7 @@ INSERT INTO dbo.Color (IdColor, Nombre) VALUES
     (5, 'Celeste'), (6, 'Beige'), (7, 'Rojo');
 
 
--- 3. PRODUCTOS Y VARIANTES
+-- 3. productos y variantes
 -- Las variantes se cargan con un stock inicial (inventario de apertura).
 -- Desde acá, el stock solo cambia por compras recibidas, ventas,
 -- anulaciones y ajustes.
@@ -1455,7 +1321,7 @@ VALUES
     (12, 6, 4, 1, 7, 'REM-BAS-S-ROJ',   10000.00,  2, 5);
 
 
--- 4. PROVEEDORES Y CLIENTES
+-- 4. proveedores y clientes
 
 INSERT INTO dbo.Proveedor (IdProveedor, RazonSocial, CUIT, Telefono, Email, Direccion) VALUES
     (1, 'Distribuidora Norte S.A.', '30-71234567-8', '011-4555-1001', 'ventas@norte.com', 'Av. Cabildo 1234'),
@@ -1468,7 +1334,7 @@ INSERT INTO dbo.Cliente (IdCliente, Nombre, Apellido, DNI, Telefono, Email, Dire
     (3, 'Sofía',  'Rodríguez','33444555', '11-5555-2003', 'sofia.rodriguez@mail.com','Caballito 333');
 
 
--- 5. COMPRAS (un producto por compra)
+-- 5. compras
 
 -- Compra 1: se registra PENDIENTE y se recibe. Suma 5 unidades a la variante 1.
 EXEC dbo.SP_RegistrarCompra
@@ -1495,7 +1361,7 @@ SET Estado = 'ANULADA'
 WHERE IdCompra = 3;
 
 
--- 6. VENTAS (un producto por venta)
+-- 6. ventas
 
 -- Venta 1: CONFIRMADA. Vendedor 1, cliente 1.
 EXEC dbo.SP_RegistrarVenta
@@ -1533,7 +1399,7 @@ EXEC dbo.SP_RegistrarVenta
 EXEC dbo.SP_AnularVenta @IdVenta = 6, @IdUsuario = 1;
 
 
--- 7. AJUSTES DE STOCK
+-- 7. ajustes de stock
 
 -- Ajuste real: la variante 1 pasa de 23 a 22 (movimiento AJUSTE -1).
 EXEC dbo.SP_AjustarStock
@@ -1546,7 +1412,7 @@ EXEC dbo.SP_AjustarStock
     @Observacion = 'Prueba de ajuste sin diferencia';
 
 
--- 8. CASOS DE ERROR
+-- 8. casos de error
 -- Cada caso se ejecuta dentro de BEGIN TRY / BEGIN CATCH para mostrar
 -- el error y que el seed pueda seguir.
 
@@ -1656,7 +1522,7 @@ BEGIN TRY
     SELECT '8.10 BORRAR_VENTA' AS Caso, 'ERROR: la venta no debió borrarse' AS Resultado;
 END TRY
 BEGIN CATCH
-    -- El error viene de un trigger: se revierte la operación si quedó abierta.
+    -- el error lo tira un trigger, hago rollback por si quedó algo abierto
     IF @@TRANCOUNT > 0
         ROLLBACK TRANSACTION;
     SELECT '8.10 BORRAR_VENTA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
@@ -1668,14 +1534,14 @@ BEGIN TRY
     SELECT '8.11 REACTIVAR_VENTA' AS Caso, 'ERROR: la venta no debió reactivarse' AS Resultado;
 END TRY
 BEGIN CATCH
-    -- El error viene de un trigger: se revierte la operación si quedó abierta.
+    -- el error lo tira un trigger, hago rollback por si quedó algo abierto
     IF @@TRANCOUNT > 0
         ROLLBACK TRANSACTION;
     SELECT '8.11 REACTIVAR_VENTA' AS Caso, ERROR_NUMBER() AS Error, ERROR_MESSAGE() AS Mensaje;
 END CATCH;
 
 
--- 9. RESUMEN DEL SEED
+-- 9. resumen
 
 SELECT 'Roles' AS Tabla, COUNT(*) AS Cantidad FROM dbo.Rol
 UNION ALL SELECT 'Usuarios', COUNT(*) FROM dbo.Usuario
@@ -1691,16 +1557,12 @@ UNION ALL SELECT 'MovimientosStock', COUNT(*) FROM dbo.MovimientoStock
 UNION ALL SELECT 'AlertasStock', COUNT(*) FROM dbo.AlertaStock;
 GO
 
-GO
+-- ===== Subconsultas.sql =====
 
--- ====================================================================
--- 12. Subconsultas.sql
--- ====================================================================
 USE SIAM;
 GO
 
 -- Subconsulta: Clientes que han comprado ropa de la categoria 'Buzos'
--- (Asumiendo que existe la categoría, filtramos por IdCategoria)
 
 SELECT Nombre, Apellido, DNI
 FROM Cliente
@@ -1735,11 +1597,9 @@ WHERE vp.PrecioVenta > ALL (
     INNER JOIN Marca m ON p.IdMarca = m.IdMarca
     WHERE m.Nombre = 'Nangallery'
 );
-GO
 
--- ====================================================================
--- 13. sp/ConsultasAvanzadas.sql
--- ====================================================================
+-- ===== sp/ConsultasAvanzadas.sql =====
+
 USE SIAM;
 GO
 
@@ -1869,20 +1729,15 @@ WHERE vp.PrecioVenta > (
     WHERE p2.IdCategoria = p.IdCategoria -- Compara con la misma categoría.
 );
 GO
-GO
 
--- ====================================================================
--- 14. seguridad.sql
--- ====================================================================
--- SEGURIDAD SIAM
--- Logins (servidor) -> usuarios (base SIAM) -> roles -> permisos.
--- Criterio de menor privilegio: cada rol recibe con GRANT solo lo que
--- necesita. Lo que no se otorga queda sin acceso.
+-- ===== seguridad.sql =====
 
--- 1. LOGINS (nivel servidor)
--- Los logins no se borran al recrear la base, por eso se crean solo si
--- todavía no existen. Las contraseñas son de ejemplo: cambiarlas en un
--- entorno real.
+-- seguridad: logins -> usuarios -> roles -> permisos
+-- a cada rol le doy con GRANT solo lo que necesita
+
+-- 1. logins
+-- no se borran al recrear la base, asi que se crean solo si no existen
+-- (las contraseñas son de ejemplo)
 USE master;
 GO
 
@@ -1894,7 +1749,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'login_vendedor_
     CREATE LOGIN login_vendedor_siam WITH PASSWORD = 'Siam_Vend_2026!';
 GO
 
--- 2. USUARIOS DE LA BASE
+-- 2. usuarios de la base
 USE SIAM;
 GO
 
@@ -1902,7 +1757,7 @@ CREATE USER usr_admin FOR LOGIN login_admin_siam;
 CREATE USER usr_vendedor FOR LOGIN login_vendedor_siam;
 GO
 
--- 3. ROLES Y MIEMBROS
+-- 3. roles
 CREATE ROLE rol_administrador;
 CREATE ROLE rol_vendedor;
 GO
@@ -1911,13 +1766,10 @@ ALTER ROLE rol_administrador ADD MEMBER usr_admin;
 ALTER ROLE rol_vendedor ADD MEMBER usr_vendedor;
 GO
 
--- 4. PERMISOS DEL ADMINISTRADOR
--- Catálogo, maestros y usuarios: puede consultar y mantener.
+-- 4. permisos del administrador
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Rol       TO rol_administrador;
 
--- Usuarios: puede darlos de alta, modificarlos y borrarlos, pero la
--- consulta se otorga columna por columna, sin Contrasena. Así ni el
--- administrador puede leer las contraseñas (error 230 si lo intenta).
+-- usuarios: el select es por columna, sin Contrasena, para que no pueda leerla
 GRANT SELECT (IdUsuario, IdRol, NombreUsuario, Email, Nombre, Apellido, Activo, FechaAlta)
     ON dbo.Usuario TO rol_administrador;
 GRANT INSERT, UPDATE, DELETE ON dbo.Usuario TO rol_administrador;
@@ -1931,16 +1783,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Producto  TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Proveedor TO rol_administrador;
 GRANT SELECT, INSERT, UPDATE, DELETE ON dbo.Cliente   TO rol_administrador;
 
--- Variantes: alta y cambio de precio/mínimo. Sin DELETE porque están
--- referenciadas por ventas y compras.
--- El UPDATE se otorga solo sobre PrecioVenta y StockMinimo: StockActual
--- no se puede modificar directo (error 230). El stock solo cambia por
--- compras recibidas, ventas, anulaciones y SP_AjustarStock.
+-- variantes: sin DELETE porque las usan las ventas y compras
+-- el update es solo de precio y minimo, el stock no se toca directo
 GRANT SELECT, INSERT ON dbo.VarianteProducto TO rol_administrador;
 GRANT UPDATE (PrecioVenta, StockMinimo) ON dbo.VarianteProducto TO rol_administrador;
 
--- Ventas, compras y movimientos: solo lectura. Se registran, reciben,
--- anulan y ajustan únicamente a través de los stored procedures.
+-- ventas, compras y movimientos: solo lectura, se modifican con los SP
 GRANT SELECT ON dbo.Venta           TO rol_administrador;
 GRANT SELECT ON dbo.DetalleVenta    TO rol_administrador;
 GRANT SELECT ON dbo.Compra          TO rol_administrador;
@@ -1948,16 +1796,16 @@ GRANT SELECT ON dbo.DetalleCompra   TO rol_administrador;
 GRANT SELECT ON dbo.MovimientoStock TO rol_administrador;
 GRANT SELECT ON dbo.HistorialPrecio TO rol_administrador;
 
--- Alertas: puede marcarlas como atendidas.
+-- alertas: las puede marcar como atendidas
 GRANT SELECT, UPDATE ON dbo.AlertaStock TO rol_administrador;
 
--- Vistas
+-- vistas
 GRANT SELECT ON dbo.vw_StockVariante                    TO rol_administrador;
 GRANT SELECT ON dbo.vw_VentasDetalladas                 TO rol_administrador;
 GRANT SELECT ON dbo.vw_ProductosPremium                 TO rol_administrador;
 GRANT SELECT ON dbo.vw_CategoriasMasVendidasPorSegmento TO rol_administrador;
 
--- Stored procedures
+-- stored procedures
 GRANT EXECUTE ON dbo.SP_RegistrarVenta         TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_AnularVenta            TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_AjustarStock           TO rol_administrador;
@@ -1965,13 +1813,12 @@ GRANT EXECUTE ON dbo.SP_RegistrarCompra        TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_RecibirCompra          TO rol_administrador;
 GRANT EXECUTE ON dbo.SP_InformeReposicionStock TO rol_administrador;
 
--- Funciones: la escalar se ejecuta, la de tabla se consulta con SELECT.
+-- funciones
 GRANT EXECUTE ON dbo.fn_EstadoStock             TO rol_administrador;
 GRANT SELECT  ON dbo.fn_ResumenVentasPorUsuario TO rol_administrador;
 GO
 
--- 5. PERMISOS DEL VENDEDOR
--- Solo lectura del catálogo y de clientes.
+-- 5. permisos del vendedor
 GRANT SELECT ON dbo.Producto         TO rol_vendedor;
 GRANT SELECT ON dbo.VarianteProducto TO rol_vendedor;
 GRANT SELECT ON dbo.Categoria        TO rol_vendedor;
@@ -1981,26 +1828,20 @@ GRANT SELECT ON dbo.Color            TO rol_vendedor;
 GRANT SELECT ON dbo.Segmento         TO rol_vendedor;
 GRANT SELECT ON dbo.Cliente          TO rol_vendedor;
 
--- Vistas de consulta
+-- vistas
 GRANT SELECT ON dbo.vw_StockVariante                    TO rol_vendedor;
 GRANT SELECT ON dbo.vw_VentasDetalladas                 TO rol_vendedor;
 GRANT SELECT ON dbo.vw_ProductosPremium                 TO rol_vendedor;
 GRANT SELECT ON dbo.vw_CategoriasMasVendidasPorSegmento TO rol_vendedor;
 
--- Operaciones: registrar ventas y consultar reposición.
+-- puede registrar ventas y ver reposicion
 GRANT EXECUTE ON dbo.SP_RegistrarVenta         TO rol_vendedor;
 GRANT EXECUTE ON dbo.SP_InformeReposicionStock TO rol_vendedor;
 GRANT EXECUTE ON dbo.fn_EstadoStock            TO rol_vendedor;
 GO
 
--- Sin GRANT, el vendedor no puede: ver usuarios ni contraseñas, ver
--- compras, proveedores ni movimientos, modificar tablas, anular ventas,
--- ajustar stock ni registrar o recibir compras.
---
--- Para quitar un permiso otorgado se usa REVOKE. Ejemplo:
---   REVOKE SELECT ON dbo.Cliente FROM rol_vendedor;
+-- el vendedor no puede ver usuarios, compras ni proveedores, ni anular ventas
+-- ni ajustar stock (para sacar un permiso: REVOKE)
 
 PRINT 'Seguridad SIAM aplicada: logins, usuarios, roles y permisos configurados.';
-GO
-
 GO
