@@ -21,7 +21,7 @@ El stock se maneja **por variante**: no tiene sentido decir "quedan 10 remeras" 
 | Actor | Descripción | Qué hace en el sistema |
 |---|---|---|
 | **Administrador** | Responsable del local | Gestiona el catálogo, los proveedores, las compras y los usuarios. Ajusta el stock, anula ventas y consulta informes |
-| **Vendedor** | Atiende al público | Consulta productos y stock, registra clientes y registra ventas |
+| **Vendedor** | Atiende al público | Consulta productos, stock y clientes, y registra ventas |
 | **Proveedor** | Empresa que vende mercadería al local | No usa el sistema: se registra como dato para asociarlo a las compras |
 | **Cliente** | Persona que compra en el local | No usa el sistema. Puede registrarse con sus datos o comprar como consumidor final |
 
@@ -41,7 +41,7 @@ El stock se maneja **por variante**: no tiene sentido decir "quedan 10 remeras" 
 | Movimiento de stock | Variante, usuario, fecha, tipo, cantidad, compra o venta de origen, observación |
 | Usuario | Rol, nombre de usuario, email, contraseña, nombre, apellido, si está activo, fecha de alta |
 | Rol | Nombre y descripción |
-| Historial de precios | Variante, precio anterior, precio nuevo, fecha, usuario |
+| Historial de precios | Variante, precio anterior, precio nuevo, fecha |
 | Alerta de stock | Variante, stock y mínimo al momento de la alerta, fecha, si fue atendida |
 
 ## Reglas de negocio
@@ -51,16 +51,15 @@ Se detallan en la sección [5. Reglas de negocio](05_reglas_de_negocio.md).
 ## Procesos principales
 
 ### Compra de mercadería
-1. El administrador registra una compra a un proveedor. La compra queda **PENDIENTE**.
-2. Carga las líneas: qué variantes, cuántas unidades y a qué costo. El total se calcula solo.
-3. Cuando llega la mercadería, marca la compra como **RECIBIDA**. Recién en ese momento el stock aumenta.
-4. Si el pedido se cancela, la marca como **ANULADA** y el stock no cambia.
+1. El administrador registra la compra de un producto a un proveedor: la variante, la cantidad y el costo unitario. La compra queda **PENDIENTE** y el total se calcula solo.
+2. Cuando llega la mercadería, marca la compra como **RECIBIDA**. Recién en ese momento el stock aumenta.
+3. Una compra pendiente puede pasar a **ANULADA** (el stock no cambia), pero hoy no hay un procedimiento que lo haga: requiere un `UPDATE` directo, que ningún rol de `seguridad.sql` tiene permitido.
 
 ### Venta
-1. El vendedor arma la venta con una o más variantes, cantidades, precios y descuentos.
+1. El vendedor registra la venta de un producto: la variante, la cantidad y, si corresponde, un descuento. El precio es el de la variante en el catálogo.
 2. Indica el medio de pago y, si corresponde, el cliente. Si no hay cliente, la venta es a consumidor final.
-3. El sistema verifica que haya stock de todo y registra la venta completa: cabecera, detalle y descuento del stock.
-4. Si falta stock de alguna línea, no se registra nada.
+3. El sistema verifica que haya stock y registra la venta completa: cabecera, detalle y descuento del stock.
+4. Si falta stock, no se registra nada.
 
 ### Anulación de una venta
 1. El administrador anula la venta indicando quién autoriza.
@@ -81,7 +80,7 @@ Se detallan en la sección [5. Reglas de negocio](05_reglas_de_negocio.md).
 - El stock de una variante nunca puede ser negativo.
 - El stock solo cambia por compras recibidas, ventas, anulaciones y ajustes.
 - Las ventas y compras no se borran: se anulan.
-- Los productos no se borran: se dan de baja (`Activo = 0`).
+- Los productos se dan de baja (`Activo = 0`) en lugar de borrarse; un producto con variantes no se puede borrar porque las claves foráneas lo impiden.
 - Un usuario dado de baja no puede registrar operaciones.
 - No pueden existir dos variantes con la misma combinación de producto, segmento, talle y color.
 - No se repiten SKU, DNI de cliente, CUIT de proveedor, nombre de usuario ni email de usuario.

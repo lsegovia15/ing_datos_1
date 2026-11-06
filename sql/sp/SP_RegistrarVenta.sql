@@ -1,85 +1,96 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_RegistrarVenta
+-- registra una venta de una variante
+-- el precio sale de VarianteProducto para que no se pueda cargar otro
+-- los triggers descuentan el stock y calculan el total
+
+CREATE OR ALTER PROCEDURE dbo.SP_RegistrarVenta
     @IdCliente      INT = NULL,
     @IdUsuario      INT,
     @MedioPago      VARCHAR(20),
     @IdVariante     INT,
     @Cantidad       INT,
-    @PrecioUnitario DECIMAL(12,2),
     @Descuento      DECIMAL(12,2) = 0
 AS
 BEGIN
-    DECLARE @IdVenta INT;
-    DECLARE @Total DECIMAL(12,2);
-    DECLARE @StockDisponible INT;
+    SET NOCOUNT ON;
+
+    DECLARE @IdVenta        INT;
+    DECLARE @PrecioUnitario DECIMAL(12,2);
+    DECLARE @StockActual    INT;
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
-        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
+
+        IF (@Cantidad IS NULL OR @Cantidad <= 0)
         BEGIN
-            PRINT 'Error: El usuario que registra la venta no existe o está inactivo.';
-            RETURN;
+            THROW 50001, 'La cantidad a vender debe ser mayor a cero.', 1;
         END
 
-        IF NOT EXISTS (
-            SELECT 1
-            FROM Usuario u
-            INNER JOIN Rol r ON r.IdRol = u.IdRol
-            WHERE u.IdUsuario = @IdUsuario
-              AND u.Activo = 1
-              AND r.Nombre IN ('Administrador', 'Vendedor')
-        )
+        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario debe tener rol Administrador o Vendedor.';
-            RETURN;
+            THROW 50002, 'El usuario que registra la venta no existe o está inactivo.', 1;
+        END
+
+        IF NOT EXISTS (SELECT 1
+                       FROM Usuario u
+                       INNER JOIN Rol r ON r.IdRol = u.IdRol
+                       WHERE u.IdUsuario = @IdUsuario
+                         AND r.Nombre IN ('Administrador', 'Vendedor'))
+        BEGIN
+            THROW 50007, 'El usuario debe tener rol Administrador o Vendedor para registrar ventas.', 1;
         END
 
         IF (@IdCliente IS NOT NULL AND NOT EXISTS (SELECT 1 FROM Cliente WHERE IdCliente = @IdCliente))
         BEGIN
-            PRINT 'Error: El cliente especificado no existe.';
-            RETURN;
+            THROW 50003, 'El cliente especificado no existe.', 1;
         END
 
-        IF NOT EXISTS (SELECT 1 FROM VarianteProducto WHERE IdVariante = @IdVariante)
+        IF (@MedioPago IS NULL OR @MedioPago NOT IN ('EFECTIVO', 'DEBITO', 'CREDITO', 'TRANSFERENCIA'))
         BEGIN
-            PRINT 'Error: La variante especificada no existe.';
-            RETURN;
+            THROW 50004, 'Medio de pago no válido. Use EFECTIVO, DEBITO, CREDITO o TRANSFERENCIA.', 1;
         END
 
-        -- Validar stock suficiente
-        SELECT @StockDisponible = StockActual
+        SELECT @PrecioUnitario = PrecioVenta,
+               @StockActual    = StockActual
         FROM VarianteProducto
         WHERE IdVariante = @IdVariante;
 
-        IF (@StockDisponible < @Cantidad)
+        IF (@PrecioUnitario IS NULL)
         BEGIN
-            PRINT 'Error: Stock insuficiente para realizar la venta.';
-            RETURN;
+            THROW 50005, 'La variante especificada no existe.', 1;
         END
 
-        -- 2. TRANSACCIÓN ATÓMICA
+        IF (@StockActual < @Cantidad)
+        BEGIN
+            THROW 50006, 'Stock insuficiente para realizar la venta.', 1;
+        END
+
+        IF (@Descuento < 0 OR @Descuento > @Cantidad * @PrecioUnitario)
+        BEGIN
+            THROW 50008, 'El descuento no puede ser negativo ni mayor al importe de la venta.', 1;
+        END
+
         BEGIN TRANSACTION;
 
-        -- Cálculo del total
-        SET @Total = (@Cantidad * @PrecioUnitario) - @Descuento;
-
-        -- Generación de clave primaria con MAX e ISNULL
+        -- numero siguiente
         SELECT @IdVenta = ISNULL(MAX(IdVenta), 0) + 1 FROM Venta;
 
-        -- Inserción de Cabecera
+        -- cabecera (el total lo calcula el trigger)
         INSERT INTO Venta (IdVenta, IdCliente, IdUsuario, Fecha, MedioPago, Total, Estado)
-        VALUES (@IdVenta, @IdCliente, @IdUsuario, GETDATE(), @MedioPago, @Total, 'CONFIRMADA');
+        VALUES (@IdVenta, @IdCliente, @IdUsuario, GETDATE(), @MedioPago, 0, 'CONFIRMADA');
 
-        -- Inserción de Detalle (NroLinea fijo = 1 para la línea vendida)
+        -- detalle
         INSERT INTO DetalleVenta (IdVenta, NroLinea, IdVariante, Cantidad, PrecioUnitario, Descuento)
         VALUES (@IdVenta, 1, @IdVariante, @Cantidad, @PrecioUnitario, @Descuento);
 
         COMMIT TRANSACTION;
 
-        -- Resultado de salida
-        SELECT @IdVenta AS IdVentaGenerada, @Total AS TotalVenta, 'Venta registrada exitosamente' AS Mensaje;
+        SELECT IdVenta AS IdVentaGenerada,
+               Total   AS TotalVenta,
+               'Venta registrada exitosamente' AS Mensaje
+        FROM Venta
+        WHERE IdVenta = @IdVenta;
 
     END TRY
     BEGIN CATCH

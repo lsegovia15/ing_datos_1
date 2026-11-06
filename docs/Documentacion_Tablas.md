@@ -141,11 +141,7 @@ Se relaciona con **Venta** y **VarianteProducto**.
 
 Registra los movimientos que afectan al stock de una variante de producto.
 
-Tipos de movimiento:
-
-- **Entrada:** ingreso de mercadería por una compra.
-- **Salida:** producto vendido.
-- **Ajuste:** corrección manual del stock.
+Hoy solo registra los **ajustes manuales** (`AJUSTE`), que inserta `SP_AjustarStock` con la diferencia entre el stock contado y el del sistema. Las ventas, anulaciones y recepciones de compra modifican el stock directamente, sin generar movimientos. El `CHECK` de la tabla admite también `ENTRADA`, `SALIDA` y `DEVOLUCION`, pero ningún objeto los inserta.
 
 Se relaciona con **VarianteProducto**.
 
@@ -280,7 +276,7 @@ MOVIMIENTO_STOCK
 | 11 | **Cliente** | Clientes |
 | 12 | **Venta** | Ventas realizadas |
 | 13 | **DetalleVenta** | Productos incluidos en cada venta |
-| 14 | **MovimientoStock** | Entradas, salidas y ajustes de stock |
+| 14 | **MovimientoStock** | Ajustes manuales de stock |
 | 15 | **Usuario** | Personas que utilizan el sistema |
 | 16 | **Rol** | Permisos/tipo de usuario |
 | 17 | **HistorialPrecio** | Auxiliar: auditoría de cambios de precio |
@@ -351,7 +347,7 @@ El modelo está implementado en los scripts SQL del repositorio:
 - `sql/siam_triggers.sql`: triggers y 2 tablas auxiliares (`HistorialPrecio`, `AlertaStock`).
 - `sql/funciones.sql`: funciones de estado de stock y resumen de ventas.
 - `sql/vistas.sql`: vistas de negocio, incluida `vw_CategoriasMasVendidasPorSegmento`.
-- `sql/sp/`: tipos TVP y procedimientos de ventas, compras, anulaciones y ajustes.
+- `sql/sp/`: procedimientos de ventas, compras, anulaciones y ajustes.
 - `sql/cursores.sql`: informe de reposición de stock.
 - `sql/seed_data.sql`: datos de prueba y casos borde.
 - `sql/seguridad.sql`: logins, usuarios, roles y permisos del motor.

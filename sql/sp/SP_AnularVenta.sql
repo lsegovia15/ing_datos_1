@@ -1,68 +1,59 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_AnularVenta
-    @IdVenta INT,
+-- anula una venta CONFIRMADA (solo administrador)
+-- el trigger TR_DevolverStockAnulacion devuelve el stock
+
+CREATE OR ALTER PROCEDURE dbo.SP_AnularVenta
+    @IdVenta   INT,
     @IdUsuario INT
 AS
 BEGIN
+    SET NOCOUNT ON;
+
     DECLARE @EstadoActual VARCHAR(20);
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
-        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario)
+
+        IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario que anula la venta no existe.';
-            RETURN;
+            THROW 50012, 'El usuario que anula la venta no existe o está inactivo.', 1;
         END
 
-        IF NOT EXISTS (
-            SELECT 1
-            FROM Usuario u
-            INNER JOIN Rol r ON r.IdRol = u.IdRol
-            WHERE u.IdUsuario = @IdUsuario
-              AND u.Activo = 1
-              AND r.Nombre = 'Administrador'
-        )
+        IF NOT EXISTS (SELECT 1
+                       FROM Usuario u
+                       INNER JOIN Rol r ON r.IdRol = u.IdRol
+                       WHERE u.IdUsuario = @IdUsuario
+                         AND r.Nombre = 'Administrador')
         BEGIN
-            PRINT 'Error: Solo un usuario Administrador activo puede anular ventas.';
-            RETURN;
+            THROW 50013, 'Solo un usuario Administrador puede anular ventas.', 1;
         END
 
-        -- Verificar existencia de la venta y obtener estado actual
         SELECT @EstadoActual = Estado
         FROM Venta
         WHERE IdVenta = @IdVenta;
 
-        IF @EstadoActual IS NULL
+        IF (@EstadoActual IS NULL)
         BEGIN
-            PRINT 'Error: La venta especificada no existe.';
-            RETURN;
-        END
-
-        IF (@EstadoActual = 'ANULADA')
-        BEGIN
-            PRINT 'Error: La venta ya se encuentra anulada.';
-            RETURN;
+            THROW 50010, 'La venta especificada no existe.', 1;
         END
 
         IF (@EstadoActual <> 'CONFIRMADA')
         BEGIN
-            PRINT 'Error: La venta no se encuentra en un estado que permita anularla.';
-            RETURN;
+            THROW 50011, 'La venta ya se encuentra anulada.', 1;
         END
 
-        -- 2. TRANSACCIÓN ATÓMICA
         BEGIN TRANSACTION;
 
-        -- Actualización del estado
         UPDATE Venta
         SET Estado = 'ANULADA'
-        WHERE IdVenta = @IdVenta;
+        WHERE IdVenta = @IdVenta
+          AND Estado = 'CONFIRMADA';
 
         COMMIT TRANSACTION;
 
-        SELECT @IdVenta AS IdVentaAnulada, 'Venta anulada y stock devuelto exitosamente' AS Mensaje;
+        SELECT @IdVenta AS IdVentaAnulada,
+               'Venta anulada y stock devuelto' AS Mensaje;
 
     END TRY
     BEGIN CATCH

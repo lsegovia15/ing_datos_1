@@ -18,13 +18,13 @@ Las reglas de negocio del local viven en la base de datos y no en la aplicación
 | La mercadería entra al stock recién al recibir la compra | Trigger | `TR_SumarStockCompra` |
 | Un ajuste de stock se aplica sobre el stock | Trigger | `TR_AplicarAjusteStock` |
 | El total de la venta coincide con el detalle | Trigger | `TR_CalcularTotalVenta` |
-| Las ventas no se borran | Trigger + permisos | `TR_NoBorrarVenta`, `DENY DELETE` |
+| Las ventas no se borran | Trigger + permisos | `TR_NoBorrarVenta` y ningún rol con `DELETE` |
 | Todo cambio de precio queda registrado | Trigger | `TR_HistorialPrecio` |
 | Se avisa cuando una variante llega al mínimo | Trigger | `TR_AvisoStockMinimo` |
 | Una venta se registra completa o no se registra | SP + transacción | `SP_RegistrarVenta` |
 | Un ajuste de stock queda registrado con su motivo y su autor | SP | `SP_AjustarStock` |
 | Una compra se registra completa y entra al stock recién al recibirla | SP + trigger | `SP_RegistrarCompra`, `SP_RecibirCompra`, `TR_SumarStockCompra` |
-| Solo el administrador anula, ajusta y compra | SP + permisos | Validación de rol en los SPs y `DENY EXECUTE` (sección 18) |
+| Solo el administrador anula, ajusta y compra | SP + permisos | Validación de rol en los SPs y `EXECUTE` otorgado solo al administrador (sección 18) |
 | El criterio de "stock bajo" es uno solo | Vista / función | `vw_StockVariante`, `fn_EstadoStock` |
 | Cuánto reponer de cada variante | Cursor | `SP_InformeReposicionStock` |
 

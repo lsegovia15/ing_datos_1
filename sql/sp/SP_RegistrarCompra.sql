@@ -1,7 +1,10 @@
 USE SIAM;
 GO
 
-CREATE PROCEDURE SP_RegistrarCompra
+-- registra una compra a un proveedor (solo administrador)
+-- queda PENDIENTE, el stock se suma recien al recibirla
+
+CREATE OR ALTER PROCEDURE dbo.SP_RegistrarCompra
     @IdProveedor    INT,
     @IdUsuario      INT,
     @IdVariante     INT,
@@ -10,76 +13,65 @@ CREATE PROCEDURE SP_RegistrarCompra
     @NroComprobante VARCHAR(30) = NULL
 AS
 BEGIN
+    SET NOCOUNT ON;
+
     DECLARE @IdCompra INT;
-    DECLARE @Total DECIMAL(12,2);
+    DECLARE @Total    DECIMAL(12,2);
 
     BEGIN TRY
-        -- 1. VALIDACIONES 
-        IF (@Cantidad <= 0)
-        BEGIN
-            PRINT 'Error: La cantidad debe ser mayor a cero.';
-            RETURN;
-        END
-
-        IF (@CostoUnitario < 0)
-        BEGIN
-            PRINT 'Error: El costo unitario no puede ser negativo.';
-            RETURN;
-        END
 
         IF NOT EXISTS (SELECT 1 FROM Proveedor WHERE IdProveedor = @IdProveedor)
         BEGIN
-            PRINT 'Error: El proveedor especificado no existe.';
-            RETURN;
+            THROW 50101, 'El proveedor especificado no existe.', 1;
         END
 
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
-            PRINT 'Error: El usuario que registra la compra no existe o está inactivo.';
-            RETURN;
+            THROW 50102, 'El usuario que registra la compra no existe o está inactivo.', 1;
         END
 
-        IF NOT EXISTS (
-            SELECT 1
-            FROM Usuario u
-            INNER JOIN Rol r ON r.IdRol = u.IdRol
-            WHERE u.IdUsuario = @IdUsuario
-              AND u.Activo = 1
-              AND r.Nombre = 'Administrador'
-        )
+        IF NOT EXISTS (SELECT 1
+                       FROM Usuario u
+                       INNER JOIN Rol r ON r.IdRol = u.IdRol
+                       WHERE u.IdUsuario = @IdUsuario
+                         AND r.Nombre = 'Administrador')
         BEGIN
-            PRINT 'Error: Solo un usuario Administrador activo puede registrar compras.';
-            RETURN;
+            THROW 50107, 'Solo un usuario Administrador puede registrar compras.', 1;
+        END
+
+        IF (@Cantidad IS NULL OR @Cantidad <= 0)
+        BEGIN
+            THROW 50104, 'La cantidad comprada debe ser mayor a cero.', 1;
+        END
+
+        IF (@CostoUnitario IS NULL OR @CostoUnitario < 0)
+        BEGIN
+            THROW 50105, 'El costo unitario no puede ser negativo.', 1;
         END
 
         IF NOT EXISTS (SELECT 1 FROM VarianteProducto WHERE IdVariante = @IdVariante)
         BEGIN
-            PRINT 'Error: La variante especificada no existe.';
-            RETURN;
+            THROW 50106, 'La variante especificada no existe.', 1;
         END
 
-        -- 2. TRANSACCIÓN ATÓMICA
-        BEGIN TRANSACTION;
-
-        -- Cálculo del total
         SET @Total = @Cantidad * @CostoUnitario;
 
-        -- Generación de clave primaria con MAX e ISNULL
+        BEGIN TRANSACTION;
+
+        -- numero siguiente
         SELECT @IdCompra = ISNULL(MAX(IdCompra), 0) + 1 FROM Compra;
 
-        -- Inserción de Cabecera
         INSERT INTO Compra (IdCompra, IdProveedor, IdUsuario, Fecha, NroComprobante, Total, Estado)
         VALUES (@IdCompra, @IdProveedor, @IdUsuario, GETDATE(), @NroComprobante, @Total, 'PENDIENTE');
 
-        -- Inserción de Detalle (NroLinea fijo = 1 para la línea de compra)
         INSERT INTO DetalleCompra (IdCompra, NroLinea, IdVariante, Cantidad, CostoUnitario)
         VALUES (@IdCompra, 1, @IdVariante, @Cantidad, @CostoUnitario);
 
         COMMIT TRANSACTION;
 
-        -- Mensaje y resultado de salida
-        SELECT @IdCompra AS IdCompraGenerada, @Total AS TotalCompra,
-               'Compra registrada exitosamente en estado PENDIENTE' AS Mensaje;
+        SELECT @IdCompra AS IdCompraGenerada,
+               @Total    AS TotalCompra,
+               'Compra registrada en estado PENDIENTE' AS Mensaje;
 
     END TRY
     BEGIN CATCH
