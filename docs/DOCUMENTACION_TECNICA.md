@@ -64,7 +64,7 @@ Todas las FK usan el comportamiento por defecto (`NO ACTION`).
 
 ### 2.5 Índices
 
-Un índice por cada FK (`IX_<Tabla>_Id<Ref>`) más: `IX_Producto_Nombre`, `IX_Cliente_Apellido_Nombre`, `IX_Compra_Fecha`, `IX_Venta_Fecha`, `IX_Mov_Fecha`.
+Un índice (`IX_<Tabla>_Id<Ref>`) por cada FK que no queda cubierta por una PK o una restricción `UNIQUE`, más: `IX_Producto_Nombre`, `IX_Cliente_Apellido_Nombre`, `IX_Compra_Fecha`, `IX_Venta_Fecha`, `IX_Mov_Fecha`.
 
 ## 3. Lógica de negocio y programabilidad
 
@@ -127,8 +127,9 @@ Crea los logins `login_admin_siam` y `login_vendedor_siam` (solo si no existen; 
 | | `rol_administrador` | `rol_vendedor` |
 |---|---|---|
 | Catálogo y `Cliente` | `SELECT/INSERT/UPDATE/DELETE` | `SELECT` |
-| `Proveedor`, `Rol`, `Usuario` | `SELECT/INSERT/UPDATE/DELETE` | Sin acceso |
-| `VarianteProducto` | `SELECT/INSERT/UPDATE` | `SELECT` |
+| `Proveedor`, `Rol` | `SELECT/INSERT/UPDATE/DELETE` | Sin acceso |
+| `Usuario` | `SELECT` (todas las columnas salvo `Contrasena`) / `INSERT/UPDATE/DELETE` | Sin acceso |
+| `VarianteProducto` | `SELECT/INSERT`; `UPDATE` solo de `PrecioVenta` y `StockMinimo` | `SELECT` |
 | `Venta`, `DetalleVenta`, `Compra`, `DetalleCompra`, `MovimientoStock`, `HistorialPrecio` | `SELECT` (se operan solo por SP) | Sin acceso |
 | `AlertaStock` | `SELECT/UPDATE` | Sin acceso |
 | Vistas | `SELECT` | `SELECT` |

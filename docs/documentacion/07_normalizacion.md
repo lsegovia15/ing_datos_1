@@ -211,7 +211,7 @@ Hay tres datos que podrían calcularse a partir de otros y que, sin embargo, se 
 | Dato | Se podría calcular como | Por qué se guarda | Cómo se evita la inconsistencia |
 |---|---|---|---|
 | `VarianteProducto.StockActual` | Compras recibidas − ventas confirmadas ± ajustes | Se consulta en cada venta. Recalcularlo cada vez sería costoso | Lo modifican los triggers `TR_DescontarStockVenta`, `TR_DevolverStockAnulacion`, `TR_SumarStockCompra` y `TR_AplicarAjusteStock` |
-| `Venta.Total` | Suma de las líneas de `DetalleVenta` | Se lista en informes y búsquedas de ventas | Lo calcula `SP_RegistrarVenta` y lo recalcula el trigger `TR_CalcularTotalVenta` |
+| `Venta.Total` | Suma de las líneas de `DetalleVenta` | Se lista en informes y búsquedas de ventas | `SP_RegistrarVenta` crea la venta con total 0 y `TR_CalcularTotalVenta` lo calcula al insertar las líneas |
 | `Compra.Total` | Suma de las líneas de `DetalleCompra` | Ídem | Lo calcula `SP_RegistrarCompra` al crear la compra |
 
 En los tres casos la redundancia es **controlada**: un trigger o un SP mantiene el valor sincronizado y los permisos de `seguridad.sql` restringen la modificación directa. Se aprovecha la ventaja de rendimiento sin las anomalías de modificación.
