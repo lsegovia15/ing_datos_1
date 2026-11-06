@@ -1,5 +1,11 @@
 # 6. Diagrama Entidad-Relación
 
+![DER de SIAM](../DER.png)
+
+`docs/DER.png` es el DER en notación de Chen (entidades, relaciones y atributos). Tiene las mismas 18 entidades y 21 relaciones, con los mismos nombres de relación y cardinalidades 1:N, y subraya las claves primarias. No marca las claves únicas (UK), la participación opcional ni la exclusión entre `IdCompra` e `IdVenta` en `MovimientoStock` (`CK_Mov_Origen`): esos puntos se leen en el diagrama de pata de gallo de abajo y en las tablas siguientes.
+
+## Diagrama en notación de pata de gallo
+
 El siguiente diagrama usa notación de "pata de gallo" (*crow's foot*). Cada extremo de una relación indica la cardinalidad y la participación:
 
 | Símbolo | Significado |
@@ -8,10 +14,6 @@ El siguiente diagrama usa notación de "pata de gallo" (*crow's foot*). Cada ext
 | `o\|` | Cero o uno (participación opcional) |
 | `\|{` | Uno o muchos (participación obligatoria) |
 | `o{` | Cero o muchos (participación opcional) |
-
-![DER de SIAM](../DER.png)
-
-`docs/DER.png` es el DER en notación de Chen (entidades, relaciones y atributos). Tiene las mismas 18 entidades y 21 relaciones, con los mismos nombres de relación y cardinalidades 1:N, y subraya las claves primarias. No marca las claves únicas (UK), la participación opcional ni la exclusión entre `IdCompra` e `IdVenta` en `MovimientoStock` (`CK_Mov_Origen`): esos puntos se leen en el diagrama de pata de gallo de abajo y en las tablas siguientes.
 
 ```mermaid
 erDiagram
