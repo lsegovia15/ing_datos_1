@@ -1,13 +1,8 @@
 USE SIAM;
 GO
 
--- SP_RecibirCompra
--- Marca como RECIBIDA una compra PENDIENTE. Al cambiar el estado se
--- dispara TR_SumarStockCompra, que suma la mercadería al stock.
--- Solo puede hacerlo un Administrador activo.
---
--- Ejemplo:
---   EXEC dbo.SP_RecibirCompra @IdCompra = 1, @IdUsuario = 1;
+-- pasa una compra de PENDIENTE a RECIBIDA (solo administrador)
+-- el trigger TR_SumarStockCompra suma el stock
 
 CREATE OR ALTER PROCEDURE dbo.SP_RecibirCompra
     @IdCompra  INT,
@@ -20,7 +15,6 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. VALIDACIONES
         IF NOT EXISTS (SELECT 1 FROM Usuario WHERE IdUsuario = @IdUsuario AND Activo = 1)
         BEGIN
             THROW 50113, 'El usuario que recibe la compra no existe o está inactivo.', 1;
@@ -54,10 +48,8 @@ BEGIN
             THROW 50111, 'No se puede recibir una compra sin líneas de detalle.', 1;
         END
 
-        -- 2. TRANSACCIÓN
         BEGIN TRANSACTION;
 
-        -- Dispara TR_SumarStockCompra
         UPDATE Compra
         SET Estado = 'RECIBIDA'
         WHERE IdCompra = @IdCompra
