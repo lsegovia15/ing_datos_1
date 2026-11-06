@@ -1,6 +1,6 @@
 # 6. Diagrama Entidad-Relación
 
-El diagrama usa notación de "pata de gallo" (*crow's foot*). Cada extremo de una relación indica la cardinalidad y la participación:
+El siguiente diagrama usa notación de "pata de gallo" (*crow's foot*). Cada extremo de una relación indica la cardinalidad y la participación:
 
 | Símbolo | Significado |
 |---|---|
@@ -11,7 +11,7 @@ El diagrama usa notación de "pata de gallo" (*crow's foot*). Cada extremo de un
 
 ![DER de SIAM](../DER.png)
 
-La imagen `docs/DER.png` es el render del diagrama de abajo. Si cambia el modelo, se actualiza el bloque Mermaid y se vuelve a exportar la imagen.
+`docs/DER.png` es el DER en notación de Chen (entidades, relaciones y atributos). Tiene las mismas 18 entidades y 21 relaciones, con los mismos nombres de relación y cardinalidades 1:N, y subraya las claves primarias. No marca las claves únicas (UK), la participación opcional ni la exclusión entre `IdCompra` e `IdVenta` en `MovimientoStock` (`CK_Mov_Origen`): esos puntos se leen en el diagrama de pata de gallo de abajo y en las tablas siguientes.
 
 ```mermaid
 erDiagram
